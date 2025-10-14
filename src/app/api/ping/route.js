@@ -1,5 +1,5 @@
 // src/app/api/participantes/route.js
-import pool from '@/lib/db';
+import db from "@/lib/db";
 
 export async function GET(req) {
   const [rows] = await pool.query(

@@ -3,7 +3,7 @@ import { enviarCorreoInscripcion } from "@/lib/email";
 import { generateTokenWithPrefix } from "@/lib/tokenGenerator";
 
 /* =========================================================
-   RUTA: /api/inscripciones-competencias
+   RUTA: /api/inscripciones_competencias
 
    Requiere en BD:
    CREATE TABLE inscripciones_competencias (
@@ -11,6 +11,7 @@ import { generateTokenWithPrefix } from "@/lib/tokenGenerator";
      participante_id INT NOT NULL,
      competencia_id INT NOT NULL,
      registrado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+     token VARCHAR(255) NULL,
      UNIQUE KEY uq_insc_comp (participante_id, competencia_id),
      FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
      FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE CASCADE
@@ -23,7 +24,10 @@ export async function POST(req) {
     const { participante_id, competencia_id } = await req.json();
 
     if (!participante_id || !competencia_id) {
-      return Response.json({ error: "Datos incompletos" }, { status: 400 });
+      return new Response(JSON.stringify({ error: "Datos incompletos" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Verificar que exista la competencia
@@ -32,7 +36,10 @@ export async function POST(req) {
       [competencia_id]
     );
     if (competencias.length === 0) {
-      return Response.json({ error: "Competencia no encontrada" }, { status: 404 });
+      return new Response(JSON.stringify({ error: "Competencia no encontrada" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Obtener información del participante
@@ -41,7 +48,10 @@ export async function POST(req) {
       [participante_id]
     );
     if (!participante.length) {
-      return Response.json({ error: "Participante no encontrado" }, { status: 404 });
+      return new Response(JSON.stringify({ error: "Participante no encontrado" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Verificar duplicado
@@ -50,7 +60,10 @@ export async function POST(req) {
       [participante_id, competencia_id]
     );
     if (exists.length > 0) {
-      return Response.json({ error: "Ya está inscrito en esta competencia" }, { status: 409 });
+      return new Response(JSON.stringify({ error: "Ya está inscrito en esta competencia" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Validar cupo si aplica
@@ -62,12 +75,15 @@ export async function POST(req) {
       );
       const inscritos = Number(countRows[0]?.inscritos || 0);
       if (inscritos >= cupo) {
-        return Response.json({ error: "Cupo completo para esta competencia" }, { status: 409 });
+        return new Response(JSON.stringify({ error: "Cupo completo para esta competencia" }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        });
       }
     }
 
     // Generar token único para esta inscripción
-    const token = generateTokenWithPrefix('competencia', competencia_id);
+    const token = generateTokenWithPrefix("competencia", competencia_id);
 
     // Realizar la inscripción con token
     await db.query(
@@ -75,61 +91,116 @@ export async function POST(req) {
       [participante_id, competencia_id, token]
     );
 
-    // Enviar correo de confirmación
+    // Enviar correo de confirmación (no bloquea el éxito de la inscripción)
     const emailResult = await enviarCorreoInscripcion({
       destinatario: participante[0].correo,
       nombreParticipante: participante[0].nombre,
       nombreActividad: competencias[0].nombre,
-      tipoActividad: 'competencia',
-      fecha: competencias[0].fecha ? new Date(competencias[0].fecha).toLocaleDateString('es-GT', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      }) : null,
+      tipoActividad: "competencia",
+      fecha: competencias[0].fecha
+        ? new Date(competencias[0].fecha).toLocaleDateString("es-GT", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        : null,
       horario: competencias[0].horario,
     });
 
     if (!emailResult.success) {
-      console.warn('⚠️ Inscripción exitosa pero el correo no pudo ser enviado:', emailResult.error);
+      console.warn(
+        "⚠️ Inscripción exitosa pero el correo no pudo ser enviado:",
+        emailResult.error
+      );
     }
 
-    return Response.json({ 
-      message: "Inscripción a competencia realizada con éxito",
-      emailSent: emailResult.success 
-    }, { status: 201 });
+    return new Response(
+      JSON.stringify({
+        message: "Inscripción a competencia realizada con éxito",
+        emailSent: emailResult.success,
+      }),
+      { status: 201, headers: { "Content-Type": "application/json" } }
+    );
   } catch (error) {
     console.error("Error al inscribir en competencia:", error);
-    return Response.json({ error: "Error al inscribir participante en competencia" }, { status: 500 });
+    return new Response(
+      JSON.stringify({ error: "Error al inscribir participante en competencia" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
 
-// GET → Lista inscripciones de competencias por participante
-// Uso: /api/inscripciones-competencias?participante_id=123
+/**
+ * GET
+ * - /api/inscripciones_competencias?competencia_id=123  → inscritos de una competencia (para el panel admin)
+ * - /api/inscripciones_competencias?participante_id=123 → competencias a las que se inscribió un participante (tu caso original)
+ */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
+    const competenciaId = searchParams.get("competencia_id");
     const participanteId = searchParams.get("participante_id");
 
-    if (!participanteId) {
-      return Response.json({ error: "ID de participante requerido" }, { status: 400 });
+    // A) Inscritos por competencia (lo que usa el módulo de Resultados Admin)
+    if (competenciaId) {
+      const [rows] = await db.query(
+        `
+        SELECT 
+          ic.id,
+          ic.participante_id,
+          p.nombre,
+          p.colegio,
+          p.correo,
+          p.telefono,
+          ic.registrado_en
+        FROM inscripciones_competencias ic
+        INNER JOIN participantes p ON p.id = ic.participante_id
+        WHERE ic.competencia_id = ?
+        ORDER BY ic.registrado_en DESC
+        `,
+        [Number(competenciaId)]
+      );
+
+      return new Response(JSON.stringify(rows || []), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    const [rows] = await db.query(
-      `SELECT 
-         ic.id,
-         ic.competencia_id,
-         c.nombre,
-         c.horario
-       FROM inscripciones_competencias ic
-       JOIN competencias c ON ic.competencia_id = c.id
-       WHERE ic.participante_id = ?
-       ORDER BY ic.registrado_en DESC`,
-      [participanteId]
-    );
+    // B) Competencias por participante (tu GET original)
+    if (participanteId) {
+      const [rows] = await db.query(
+        `
+        SELECT 
+          ic.id,
+          ic.competencia_id,
+          c.nombre,
+          c.horario,
+          ic.registrado_en
+        FROM inscripciones_competencias ic
+        JOIN competencias c ON ic.competencia_id = c.id
+        WHERE ic.participante_id = ?
+        ORDER BY ic.registrado_en DESC
+        `,
+        [Number(participanteId)]
+      );
 
-    return Response.json(rows);
+      return new Response(JSON.stringify(rows || []), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Si no se envía ninguno, 400
+    return new Response(
+      JSON.stringify({ error: "Debe enviar competencia_id o participante_id" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
   } catch (error) {
-    console.error("Error al obtener inscripciones de competencias:", error);
-    return Response.json({ error: "Error al obtener inscripciones de competencias" }, { status: 500 });
+    console.error("Error en GET /api/inscripciones_competencias:", error);
+    return new Response(
+      JSON.stringify({ error: "Error al obtener inscripciones de competencias" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }

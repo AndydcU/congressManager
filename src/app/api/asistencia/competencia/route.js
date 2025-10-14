@@ -1,25 +1,6 @@
 import db from "@/lib/db";
 
-/* =========================================================
-   Requiere en BD:
-   CREATE TABLE asistencia_competencia (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     participante_id INT NOT NULL,
-     competencia_id INT NOT NULL,
-     registrado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-     FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
-     FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE CASCADE
-   );
-   (Opcional pero recomendado) Índice único por día: lógica se maneja en la API con CURDATE().
-========================================================= */
 
-/* =========================================================
-   GET /api/asistencia/competencia
-   Modos:
-     - ?competencia_id=ID&date=YYYY-MM-DD → lista registros de esa competencia en ese día
-     - ?date=YYYY-MM-DD → resumen por competencia de ese día
-     - sin params → resumen por competencia de HOY
-========================================================= */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);

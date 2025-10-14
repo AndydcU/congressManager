@@ -118,6 +118,7 @@ export default function AdminPanel() {
         <div className="flex flex-wrap gap-3 mt-3">
           <a href="/admin/talleres" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded">Gestionar Talleres y Competencias</a>
           <a href="/participantes" className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">Ver Participantes</a>
+          <a href="/admin/resultados" className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded">Gestionar Resultados</a>
           <a href={csvTodayUrl} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded">Exportar CSV (hoy)</a>
         </div>
       </header>
