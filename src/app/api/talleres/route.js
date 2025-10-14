@@ -8,7 +8,7 @@ export async function GET() {
         t.*,
         COALESCE(
           (SELECT COUNT(DISTINCT participante_id) 
-           FROM inscripciones_talleres 
+           FROM inscripciones
            WHERE taller_id = t.id), 0
         ) as participantes_inscritos
       FROM talleres t
