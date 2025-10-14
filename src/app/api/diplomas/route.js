@@ -1,25 +1,9 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { writeFile, mkdir, stat, readFile } from 'fs/promises';
+import { writeFile, mkdir, stat } from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import db from '@/lib/db';
 import nodemailer from 'nodemailer';
-
-/* =========================================================
-   Requiere en BD:
-   CREATE TABLE diplomas (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     participante_id INT NOT NULL,
-     tipo ENUM('asistencia','taller','competencia') NOT NULL,
-     taller_id INT NULL,
-     competencia_id INT NULL,
-     archivo_url VARCHAR(255) NOT NULL,
-     emitido_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-     FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
-     FOREIGN KEY (taller_id) REFERENCES talleres(id) ON DELETE SET NULL,
-     FOREIGN KEY (competencia_id) REFERENCES competencias(id) ON DELETE SET NULL
-   );
-========================================================= */
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -59,22 +43,22 @@ async function generateDiplomaPDF({ nombreParticipante, titulo, subtitulo }) {
   return Buffer.from(pdfBytes);
 }
 
-// POST /api/diplomas/generate → genera y almacena diploma
+// POST /api/diplomas → genera y almacena diploma
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { participante_id, tipo, taller_id, competencia_id } = body;
+    const { usuario_id, tipo, taller_id, competencia_id } = body;
 
-    if (!participante_id || !tipo) {
-      return new Response(JSON.stringify({ error: 'participante_id y tipo son obligatorios.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    if (!usuario_id || !tipo) {
+      return new Response(JSON.stringify({ error: 'usuario_id y tipo son obligatorios.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Obtener datos del participante
-    const [pRows] = await db.query('SELECT id, nombre, correo FROM participantes WHERE id = ? LIMIT 1', [participante_id]);
-    if (!Array.isArray(pRows) || pRows.length === 0) {
-      return new Response(JSON.stringify({ error: 'Participante no encontrado.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+    // Obtener datos del usuario
+    const [uRows] = await db.query('SELECT id, nombre, correo FROM usuarios WHERE id = ? LIMIT 1', [usuario_id]);
+    if (!Array.isArray(uRows) || uRows.length === 0) {
+      return new Response(JSON.stringify({ error: 'Usuario no encontrado.' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
     }
-    const participante = pRows[0];
+    const usuario = uRows[0];
 
     // Preparar texto del diploma
     let titulo = '';
@@ -94,7 +78,7 @@ export async function POST(req) {
     }
 
     // Generar PDF
-    const pdfBuffer = await generateDiplomaPDF({ nombreParticipante: participante.nombre, titulo, subtitulo });
+    const pdfBuffer = await generateDiplomaPDF({ nombreParticipante: usuario.nombre, titulo, subtitulo });
 
     // Guardar archivo en /public/diplomas
     const dir = path.join(process.cwd(), 'public', 'diplomas');
@@ -106,47 +90,46 @@ export async function POST(req) {
 
     // Guardar registro en BD
     const [result] = await db.query(
-      `INSERT INTO diplomas (participante_id, tipo, taller_id, competencia_id, archivo_url)
+      `INSERT INTO diplomas (usuario_id, tipo, taller_id, competencia_id, archivo_url)
        VALUES (?, ?, ?, ?, ?)`,
-      [participante_id, tipo, taller_id || null, competencia_id || null, archivo_url]
+      [usuario_id, tipo, taller_id || null, competencia_id || null, archivo_url]
     );
 
     // Enviar correo con link
     try {
       await transporter.sendMail({
         from: `"Congreso de Tecnología" <${process.env.EMAIL_USER}>`,
-        to: participante.correo,
+        to: usuario.correo,
         subject: 'Tu diploma está listo',
-        html: `<p>Hola ${participante.nombre},</p>
+        html: `<p>Hola ${usuario.nombre},</p>
                <p>Tu diploma está listo para descarga:</p>
                <p><a href="${process.env.NEXT_PUBLIC_BASE_URL}${archivo_url}" target="_blank">Descargar diploma</a></p>
                <p>Saludos,</p>`
       });
     } catch (mailErr) {
       console.error('Error enviando correo de diploma:', mailErr);
-      // No hacemos rollback del diploma generado; solo registramos el error.
     }
 
     return new Response(JSON.stringify({ id: result.insertId, archivo_url }), { status: 201, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    console.error('Error en POST /api/diplomas/generate:', error);
+    console.error('Error en POST /api/diplomas:', error);
     return new Response(JSON.stringify({ error: 'Error al generar diploma.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }
 
-// GET /api/diplomas?participante_id=... → lista diplomas del participante
+// GET /api/diplomas?usuario_id=... → lista diplomas del usuario
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const participante_id = Number(searchParams.get('participante_id'));
-    if (!participante_id) {
-      return new Response(JSON.stringify({ error: 'participante_id requerido' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    const usuario_id = Number(searchParams.get('usuario_id'));
+    if (!usuario_id) {
+      return new Response(JSON.stringify({ error: 'usuario_id requerido' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
     const [rows] = await db.query(
       `SELECT id, tipo, taller_id, competencia_id, archivo_url, emitido_en
-       FROM diplomas WHERE participante_id = ? ORDER BY emitido_en DESC`,
-      [participante_id]
+       FROM diplomas WHERE usuario_id = ? ORDER BY emitido_en DESC`,
+      [usuario_id]
     );
 
     return new Response(JSON.stringify(rows || []), { status: 200, headers: { 'Content-Type': 'application/json' } });

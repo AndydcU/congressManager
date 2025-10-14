@@ -7,15 +7,16 @@ export default function AdminTalleresPage() {
   const [talleres, setTalleres] = useState([]);
   const [competencias, setCompetencias] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(null); // 'taller' | 'competencia' | null
+  const [showForm, setShowForm] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ 
     nombre: '', 
     descripcion: '', 
-    horario: '', 
+    hora_inicio: '', 
+    hora_fin: '', 
     cupo: 0, 
-    precio: 0,
-    fecha_realizacion: '' 
+    costo: 0,
+    fecha: '' 
   });
   const router = useRouter();
 
@@ -67,7 +68,7 @@ export default function AdminTalleresPage() {
 
       if (res.ok) {
         alert(`${showForm === 'taller' ? 'Taller' : 'Competencia'} ${editingId ? 'actualizado' : 'creado'} exitosamente`);
-        setForm({ nombre: '', descripcion: '', horario: '', cupo: 0, precio: 0, fecha_realizacion: '' });
+        setForm({ nombre: '', descripcion: '', hora_inicio: '', hora_fin: '', cupo: 0, costo: 0, fecha: '' });
         setShowForm(null);
         setEditingId(null);
         fetchData();
@@ -83,19 +84,19 @@ export default function AdminTalleresPage() {
   const handleEdit = (item, type) => {
     setEditingId(item.id);
     setShowForm(type);
-    // Convert MySQL DATE format to yyyy-MM-dd for input[type="date"]
     let fechaFormatted = '';
-    if (item.fecha_realizacion) {
-      const date = new Date(item.fecha_realizacion);
+    if (item.fecha) {
+      const date = new Date(item.fecha);
       fechaFormatted = date.toISOString().split('T')[0];
     }
     setForm({
       nombre: item.nombre || '',
       descripcion: item.descripcion || '',
-      horario: item.horario || '',
+      hora_inicio: item.hora_inicio || '',
+      hora_fin: item.hora_fin || '',
       cupo: item.cupo || 0,
-      precio: item.precio || 0,
-      fecha_realizacion: fechaFormatted
+      costo: item.costo || 0,
+      fecha: fechaFormatted
     });
   };
 
@@ -128,7 +129,7 @@ export default function AdminTalleresPage() {
   const cancelForm = () => {
     setShowForm(null);
     setEditingId(null);
-    setForm({ nombre: '', descripcion: '', horario: '', cupo: 0, precio: 0, fecha_realizacion: '' });
+    setForm({ nombre: '', descripcion: '', hora_inicio: '', hora_fin: '', cupo: 0, costo: 0, fecha: '' });
   };
 
   if (!user) return <p className="text-center mt-10">Verificando acceso...</p>;
@@ -142,7 +143,6 @@ export default function AdminTalleresPage() {
         </a>
       </header>
 
-      {/* Botones para crear */}
       <div className="flex gap-4">
         <button
           onClick={() => setShowForm('taller')}
@@ -158,7 +158,6 @@ export default function AdminTalleresPage() {
         </button>
       </div>
 
-      {/* Formulario */}
       {showForm && (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
@@ -191,15 +190,25 @@ export default function AdminTalleresPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Horario</label>
+                <label className="block text-sm font-medium mb-1">Hora Inicio</label>
                 <input
-                  type="text"
-                  value={form.horario}
-                  onChange={(e) => setForm({ ...form, horario: e.target.value })}
-                  placeholder="Ej: 10:00 - 12:00"
+                  type="time"
+                  value={form.hora_inicio}
+                  onChange={(e) => setForm({ ...form, hora_inicio: e.target.value })}
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Hora Fin</label>
+                <input
+                  type="time"
+                  value={form.hora_fin}
+                  onChange={(e) => setForm({ ...form, hora_fin: e.target.value })}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Cupo</label>
                 <input
@@ -210,30 +219,29 @@ export default function AdminTalleresPage() {
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Precio (Q) *</label>
+                <label className="block text-sm font-medium mb-1">Costo (Q) *</label>
                 <input
                   type="number"
-                  value={form.precio}
-                  onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
+                  value={form.costo}
+                  onChange={(e) => setForm({ ...form, costo: Number(e.target.value) })}
                   min="0"
                   step="0.01"
                   required
                   className="w-full border rounded px-3 py-2"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Fecha de Realización *</label>
-                <input
-                  type="date"
-                  value={form.fecha_realizacion}
-                  onChange={(e) => setForm({ ...form, fecha_realizacion: e.target.value })}
-                  required
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Fecha *</label>
+              <input
+                type="date"
+                lang="es-GT"
+                value={form.fecha}
+                onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+                required
+                className="w-full border rounded px-3 py-2"
+              />
             </div>
             <button type="submit" className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
               {editingId ? 'Actualizar' : 'Crear'} {showForm === 'taller' ? 'Taller' : 'Competencia'}
@@ -242,7 +250,6 @@ export default function AdminTalleresPage() {
         </div>
       )}
 
-      {/* Lista de Talleres */}
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold mb-4">Talleres ({talleres.length})</h2>
         {loading ? (
@@ -258,7 +265,7 @@ export default function AdminTalleresPage() {
                   <th className="py-2 pr-4">Nombre</th>
                   <th className="py-2 pr-4">Fecha</th>
                   <th className="py-2 pr-4">Horario</th>
-                  <th className="py-2 pr-4">Precio</th>
+                  <th className="py-2 pr-4">Costo</th>
                   <th className="py-2 pr-4">Cupo</th>
                   <th className="py-2 pr-4">Inscritos</th>
                   <th className="py-2 pr-4">Acciones</th>
@@ -269,13 +276,15 @@ export default function AdminTalleresPage() {
                   <tr key={t.id} className="border-b">
                     <td className="py-2 pr-4">{t.id}</td>
                     <td className="py-2 pr-4 font-medium">{t.nombre}</td>
-                    <td className="py-2 pr-4">{t.fecha_realizacion ? new Date(t.fecha_realizacion).toLocaleDateString() : '-'}</td>
-                    <td className="py-2 pr-4">{t.horario || '-'}</td>
-                    <td className="py-2 pr-4">Q{t.precio || 0}</td>
+                    <td className="py-2 pr-4">{t.fecha ? new Date(t.fecha).toLocaleDateString('es-GT') : '-'}</td>
+                    <td className="py-2 pr-4">
+                      {t.hora_inicio && t.hora_fin ? `${t.hora_inicio} - ${t.hora_fin}` : '-'}
+                    </td>
+                    <td className="py-2 pr-4">Q{t.costo || 0}</td>
                     <td className="py-2 pr-4">{t.cupo}</td>
                     <td className="py-2 pr-4">
-                      <span className={`font-bold ${t.participantes_inscritos >= t.cupo ? 'text-red-600' : 'text-green-600'}`}>
-                        {t.participantes_inscritos || 0}
+                      <span className={`font-bold ${t.inscritos >= t.cupo ? 'text-red-600' : 'text-green-600'}`}>
+                        {t.inscritos || 0}
                       </span>
                     </td>
                     <td className="py-2 pr-4">
@@ -302,7 +311,6 @@ export default function AdminTalleresPage() {
         )}
       </section>
 
-      {/* Lista de Competencias */}
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold mb-4">Competencias ({competencias.length})</h2>
         {loading ? (
@@ -318,7 +326,7 @@ export default function AdminTalleresPage() {
                   <th className="py-2 pr-4">Nombre</th>
                   <th className="py-2 pr-4">Fecha</th>
                   <th className="py-2 pr-4">Horario</th>
-                  <th className="py-2 pr-4">Precio</th>
+                  <th className="py-2 pr-4">Costo</th>
                   <th className="py-2 pr-4">Cupo</th>
                   <th className="py-2 pr-4">Inscritos</th>
                   <th className="py-2 pr-4">Acciones</th>
@@ -329,13 +337,15 @@ export default function AdminTalleresPage() {
                   <tr key={c.id} className="border-b">
                     <td className="py-2 pr-4">{c.id}</td>
                     <td className="py-2 pr-4 font-medium">{c.nombre}</td>
-                    <td className="py-2 pr-4">{c.fecha_realizacion ? new Date(c.fecha_realizacion).toLocaleDateString() : '-'}</td>
-                    <td className="py-2 pr-4">{c.horario || '-'}</td>
-                    <td className="py-2 pr-4">Q{c.precio || 0}</td>
+                    <td className="py-2 pr-4">{c.fecha ? new Date(c.fecha).toLocaleDateString('es-GT') : '-'}</td>
+                    <td className="py-2 pr-4">
+                      {c.hora_inicio && c.hora_fin ? `${c.hora_inicio} - ${c.hora_fin}` : '-'}
+                    </td>
+                    <td className="py-2 pr-4">Q{c.costo || 0}</td>
                     <td className="py-2 pr-4">{c.cupo}</td>
                     <td className="py-2 pr-4">
-                      <span className={`font-bold ${c.participantes_inscritos >= c.cupo ? 'text-red-600' : 'text-green-600'}`}>
-                        {c.participantes_inscritos || 0}
+                      <span className={`font-bold ${c.inscritos >= c.cupo ? 'text-red-600' : 'text-green-600'}`}>
+                        {c.inscritos || 0}
                       </span>
                     </td>
                     <td className="py-2 pr-4">

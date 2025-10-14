@@ -37,62 +37,47 @@ export default function AsistenciaPage() {
   const handleScan = async (data) => {
     if (!data) return;
     
-    let participante_id = null;
+    let usuario_id = null;
     let tipo = null;
     let id = null;
+    let timestamp = null;
     
     try {
-      // Intentar parsear como JSON primero
+      // El QR debe tener formato: {"usuario_id":3,"tipo":"taller","id":2,"timestamp":1760482774376}
       const jsonData = JSON.parse(data);
-      participante_id = jsonData.participante_id || jsonData.pid;
+      usuario_id = jsonData.usuario_id;
       tipo = jsonData.tipo; // 'taller' or 'competencia'
       id = jsonData.id; // taller_id or competencia_id
+      timestamp = jsonData.timestamp;
     } catch (jsonError) {
-      // Si no es JSON, intentar como URL
-      try {
-        const url = new URL(data);
-        participante_id = url.searchParams.get('pid') || url.searchParams.get('participante_id');
-      } catch (urlError) {
-        // Si tampoco es URL válida, intentar como ID directo
-        if (!isNaN(data)) {
-          participante_id = data;
-        }
-      }
+      setMensaje('⚠️ Código QR inválido. No se pudo identificar el participante.');
+      console.log('Error parseando QR:', data);
+      return;
     }
     
-    if (!participante_id) {
+    if (!usuario_id || !tipo || !id) {
       setMensaje('⚠️ Código QR inválido. No se pudo identificar el participante.');
       console.log('Datos del QR:', data);
       return;
     }
     
     // Evitar escaneos duplicados rápidos
-    const scanKey = `${participante_id}-${tipo}-${id}`;
+    const scanKey = `${usuario_id}-${tipo}-${id}`;
     if (scanKey === ultimoId) return;
     setUltimoId(scanKey);
     setMensaje('Registrando asistencia...');
 
     try {
-      const body = { participante_id };
-      if (tipo && id) {
-        body.tipo = tipo;
-        body.id = id;
-      }
-
-      const res = await fetch('/api/asistencia', {
+      const res = await fetch('/api/asistencia/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ usuario_id, tipo, id, timestamp }),
       });
 
       const resultado = await res.json();
 
       if (res.ok) {
-        let msg = `✅ Asistencia registrada para ${resultado.nombre || 'participante'}`;
-        if (tipo && resultado.actividad) {
-          msg += ` en ${tipo === 'taller' ? 'taller' : 'competencia'}: ${resultado.actividad}`;
-        }
-        setMensaje(msg);
+        setMensaje(resultado.mensaje || '✅ Asistencia registrada exitosamente.');
         await cargarAsistencias();
       } else {
         setMensaje(`❌ ${resultado.error || 'No se pudo registrar.'}`);

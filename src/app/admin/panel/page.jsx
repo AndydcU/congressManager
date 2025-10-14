@@ -163,11 +163,11 @@ export default function AdminPanel() {
         <div className="flex flex-wrap gap-3 mb-4">
           <div>
             <label className="block text-sm text-gray-600 mb-1">Desde</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border rounded px-2 py-1" />
+            <input type="date" lang="es-GT" value={from} onChange={(e) => setFrom(e.target.value)} className="border rounded px-2 py-1" />
           </div>
           <div>
             <label className="block text-sm text-gray-600 mb-1">Hasta</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border rounded px-2 py-1" />
+            <input type="date" lang="es-GT" value={to} onChange={(e) => setTo(e.target.value)} className="border rounded px-2 py-1" />
           </div>
         </div>
         {loadingRange ? (
@@ -231,13 +231,13 @@ export default function AdminPanel() {
                 ) : (
                   recent.map((r, i) => (
                     <tr
-                      key={`asist-${r.tipo ?? 'gen'}-${r.id ?? 'x'}-${r.participante_id ?? 'x'}-${new Date(r.registrado_en).getTime()}-${i}`}
+                      key={`asist-${r.tipo_actividad ?? 'gen'}-${r.id ?? 'x'}-${r.usuario_id ?? 'x'}-${new Date(r.registrado_en).getTime()}-${i}`}
                       className="border-t"
                     >
                       <td className="py-2 pr-4">{new Date(r.registrado_en).toLocaleString()}</td>
                       <td className="py-2 pr-4">{r.nombre}</td>
-                      <td className="py-2 pr-4 capitalize">{r.tipo}</td>
-                      <td className="py-2 pr-4">{r.participante_id}</td>
+                      <td className="py-2 pr-4 capitalize">{r.tipo_actividad || '—'}</td>
+                      <td className="py-2 pr-4">{r.actividad_id || '—'}</td>
                     </tr>
                   ))
                 )}

@@ -189,7 +189,7 @@ export default function PagoPage() {
               <p>Cuenta: 1234567890</p>
               <p>Nombre: Congreso de Tecnología</p>
               <p className="mt-2 text-xs text-gray-600">
-                Envía el comprobante a pagos@congreso.edu.gt
+                Envía el comprobante a proyectocongresoumg@gmail.com
               </p>
             </div>
           )}

@@ -5,8 +5,7 @@ import FormularioInscripcionModal from '@/components/FormularioInscripcionModal'
 
 export default function InscripcionPage() {
   const [user, setUser] = useState(null);
-  const [participante, setParticipante] = useState(null);
-  const [participanteId, setParticipanteId] = useState(null);
+  const [usuarioId, setUsuarioId] = useState(null);
   const [talleres, setTalleres] = useState([]);
   const [competencias, setCompetencias] = useState([]);
   const [misTalleres, setMisTalleres] = useState([]);
@@ -14,7 +13,6 @@ export default function InscripcionPage() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState(null);
   
-  // Estados para el modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actividadSeleccionada, setActividadSeleccionada] = useState(null);
   const [tipoActividadSeleccionada, setTipoActividadSeleccionada] = useState(null);
@@ -24,47 +22,30 @@ export default function InscripcionPage() {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (!storedUser) {
-      // Guardar URL de retorno antes de redirigir al login
       localStorage.setItem('returnUrl', '/inscripcion');
       router.push('/login');
       return;
     }
     const parsed = JSON.parse(storedUser);
     setUser(parsed);
-
-    // Buscar participante_id por correo
-    fetchParticipanteId(parsed.correo);
-  }, [router]);
-
-  const fetchParticipanteId = async (correo) => {
-    try {
-      const res = await fetch(`/api/participantes?busqueda=${encodeURIComponent(correo)}`);
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const participanteData = data[0];
-        const pid = participanteData.id;
-        setParticipanteId(pid);
-        setParticipante(participanteData);
-        localStorage.setItem('participante_id', pid);
-        fetchData(pid);
-      } else {
-        setMensaje({ type: 'error', text: 'No se encontró tu registro de participante. Contacta al administrador.' });
-        setLoading(false);
-      }
-    } catch (err) {
-      setMensaje({ type: 'error', text: 'Error al buscar tu participante.' });
+    
+    if (parsed.id) {
+      setUsuarioId(parsed.id);
+      fetchData(parsed.id);
+    } else {
+      setMensaje({ type: 'error', text: 'No se encontró tu registro de usuario. Contacta al administrador.' });
       setLoading(false);
     }
-  };
+  }, [router]);
 
-  const fetchData = async (pid) => {
+  const fetchData = async (uid) => {
     setLoading(true);
     try {
       const [tRes, cRes, mtRes, mcRes] = await Promise.all([
         fetch('/api/talleres'),
         fetch('/api/competencias'),
-        fetch(`/api/inscripciones?participante_id=${pid}`),
-        fetch(`/api/inscripciones-competencias?participante_id=${pid}`)
+        fetch(`/api/inscripciones?usuario_id=${uid}`),
+        fetch(`/api/inscripciones-competencias?usuario_id=${uid}`)
       ]);
 
       const tData = await tRes.json();
@@ -84,42 +65,51 @@ export default function InscripcionPage() {
   };
 
   const abrirModalTaller = (taller) => {
-    // Si tiene costo, redirigir a la página de pago
-    if (taller.precio && parseFloat(taller.precio) > 0) {
-      router.push(`/pago?tipo=taller&id=${taller.id}&monto=${taller.precio}`);
-      return;
-    }
-    
     setActividadSeleccionada(taller);
     setTipoActividadSeleccionada('taller');
     setIsModalOpen(true);
   };
 
   const abrirModalCompetencia = (competencia) => {
-    // Si tiene costo, redirigir a la página de pago
-    if (competencia.precio && parseFloat(competencia.precio) > 0) {
-      router.push(`/pago?tipo=competencia&id=${competencia.id}&monto=${competencia.precio}`);
-      return;
-    }
-    
     setActividadSeleccionada(competencia);
     setTipoActividadSeleccionada('competencia');
     setIsModalOpen(true);
   };
 
   const handleInscripcion = async (formData) => {
-    if (!participanteId || !actividadSeleccionada) return;
+    if (!usuarioId || !actividadSeleccionada) return;
     
     setMensaje(null);
     
     try {
+      // Si la actividad tiene costo, primero registrar el pago
+      if (actividadSeleccionada.costo && parseFloat(actividadSeleccionada.costo) > 0) {
+        const pagoRes = await fetch('/api/pagos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario_id: usuarioId,
+            actividad_id: actividadSeleccionada.id,
+            tipo_actividad: tipoActividadSeleccionada,
+            monto: parseFloat(actividadSeleccionada.costo),
+            metodo_pago: formData.metodo_pago || 'efectivo'
+          })
+        });
+
+        if (!pagoRes.ok) {
+          const errorData = await pagoRes.json();
+          throw new Error(errorData.error || 'Error al registrar el pago');
+        }
+      }
+
+      // Luego realizar la inscripción
       const endpoint = tipoActividadSeleccionada === 'taller' 
         ? '/api/inscripciones' 
         : '/api/inscripciones-competencias';
       
       const body = tipoActividadSeleccionada === 'taller'
-        ? { participante_id: participanteId, taller_id: actividadSeleccionada.id, ...formData }
-        : { participante_id: participanteId, competencia_id: actividadSeleccionada.id, ...formData };
+        ? { usuario_id: usuarioId, taller_id: actividadSeleccionada.id, ...formData }
+        : { usuario_id: usuarioId, competencia_id: actividadSeleccionada.id, ...formData };
 
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -130,14 +120,20 @@ export default function InscripcionPage() {
       const data = await res.json();
       
       if (res.ok) {
+        const mensajeExito = actividadSeleccionada.costo && parseFloat(actividadSeleccionada.costo) > 0
+          ? `¡Pago e inscripción exitosos! ${data.emailSent ? 'Se han enviado correos de confirmación.' : ''}`
+          : `¡Inscripción exitosa! ${data.emailSent ? 'Se ha enviado un correo de confirmación.' : ''}`;
+        
         setMensaje({ 
           type: 'success', 
-          text: `¡Inscripción exitosa! ${data.emailSent ? 'Se ha enviado un correo de confirmación.' : ''}`
+          text: mensajeExito
         });
         setIsModalOpen(false);
         setActividadSeleccionada(null);
         setTipoActividadSeleccionada(null);
-        fetchData(participanteId);
+        
+        // Recargar datos para actualizar "Mis Inscripciones"
+        await fetchData(usuarioId);
       } else {
         throw new Error(data.error || 'Error al inscribirse');
       }
@@ -171,7 +167,6 @@ export default function InscripcionPage() {
         </div>
       )}
 
-      {/* Mis Inscripciones */}
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold mb-4">Mis Inscripciones</h2>
         <div className="grid md:grid-cols-2 gap-6">
@@ -185,7 +180,9 @@ export default function InscripcionPage() {
                   <li key={t.id} className="p-2 bg-blue-50 rounded text-sm">
                     <strong>{t.nombre}</strong>
                     {t.fecha && <div className="text-xs text-gray-600">📅 {new Date(t.fecha).toLocaleDateString('es-GT')}</div>}
-                    <div className="text-xs text-gray-600">🕐 {t.horario}</div>
+                    {(t.hora_inicio && t.hora_fin) && (
+                      <div className="text-xs text-gray-600">🕐 {t.hora_inicio} - {t.hora_fin}</div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -201,7 +198,9 @@ export default function InscripcionPage() {
                   <li key={c.id} className="p-2 bg-indigo-50 rounded text-sm">
                     <strong>{c.nombre}</strong>
                     {c.fecha && <div className="text-xs text-gray-600">📅 {new Date(c.fecha).toLocaleDateString('es-GT')}</div>}
-                    <div className="text-xs text-gray-600">🕐 {c.horario}</div>
+                    {(c.hora_inicio && c.hora_fin) && (
+                      <div className="text-xs text-gray-600">🕐 {c.hora_inicio} - {c.hora_fin}</div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -210,7 +209,6 @@ export default function InscripcionPage() {
         </div>
       </section>
 
-      {/* Talleres Disponibles */}
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold mb-4">Talleres Disponibles</h2>
         {talleres.length === 0 ? (
@@ -223,11 +221,15 @@ export default function InscripcionPage() {
                 <div key={t.id} className="border rounded-lg p-4 space-y-2">
                   <h3 className="font-semibold text-lg">{t.nombre}</h3>
                   <p className="text-sm text-gray-600">{t.descripcion}</p>
-                  {t.fecha_realizacion && <p className="text-sm"><strong>📅 Fecha:</strong> {new Date(t.fecha_realizacion).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>}
-                  <p className="text-sm"><strong>🕐 Horario:</strong> {t.horario || 'Por definir'}</p>
+                  {t.fecha && <p className="text-sm"><strong>📅 Fecha:</strong> {new Date(t.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>}
+                  {(t.hora_inicio && t.hora_fin) ? (
+                    <p className="text-sm"><strong>🕐 Horario:</strong> {t.hora_inicio} - {t.hora_fin}</p>
+                  ) : (
+                    <p className="text-sm"><strong>🕐 Horario:</strong> Por definir</p>
+                  )}
                   <p className="text-sm"><strong>👥 Cupo:</strong> {t.cupo}</p>
-                  {t.precio && parseFloat(t.precio) > 0 && (
-                    <p className="text-sm font-semibold text-green-700">💰 Costo: Q{parseFloat(t.precio).toFixed(2)}</p>
+                  {t.costo && parseFloat(t.costo) > 0 && (
+                    <p className="text-sm font-semibold text-green-700">💰 Costo: Q{parseFloat(t.costo).toFixed(2)}</p>
                   )}
                   <button
                     onClick={() => abrirModalTaller(t)}
@@ -238,7 +240,7 @@ export default function InscripcionPage() {
                         : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
-                    {inscrito ? 'Ya inscrito' : (t.precio && parseFloat(t.precio) > 0 ? '💳 Pagar e Inscribirse' : 'Inscribirme')}
+                    {inscrito ? 'Ya inscrito' : (t.costo && parseFloat(t.costo) > 0 ? '💳 Pagar e Inscribirse' : 'Inscribirme')}
                   </button>
                 </div>
               );
@@ -247,7 +249,6 @@ export default function InscripcionPage() {
         )}
       </section>
 
-      {/* Competencias Disponibles */}
       <section className="bg-white rounded-lg shadow p-6">
         <h2 className="text-2xl font-semibold mb-4">Competencias Disponibles</h2>
         {competencias.length === 0 ? (
@@ -260,11 +261,15 @@ export default function InscripcionPage() {
                 <div key={c.id} className="border rounded-lg p-4 space-y-2 border-l-4 border-indigo-600">
                   <h3 className="font-semibold text-lg">{c.nombre}</h3>
                   <p className="text-sm text-gray-600">{c.descripcion}</p>
-                  {c.fecha_realizacion && <p className="text-sm"><strong>📅 Fecha:</strong> {new Date(c.fecha_realizacion).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>}
-                  <p className="text-sm"><strong>🕐 Horario:</strong> {c.horario || 'Por definir'}</p>
+                  {c.fecha && <p className="text-sm"><strong>📅 Fecha:</strong> {new Date(c.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>}
+                  {(c.hora_inicio && c.hora_fin) ? (
+                    <p className="text-sm"><strong>🕐 Horario:</strong> {c.hora_inicio} - {c.hora_fin}</p>
+                  ) : (
+                    <p className="text-sm"><strong>🕐 Horario:</strong> Por definir</p>
+                  )}
                   <p className="text-sm"><strong>👥 Cupo:</strong> {c.cupo}</p>
-                  {c.precio && parseFloat(c.precio) > 0 && (
-                    <p className="text-sm font-semibold text-green-700">💰 Costo: Q{parseFloat(c.precio).toFixed(2)}</p>
+                  {c.costo && parseFloat(c.costo) > 0 && (
+                    <p className="text-sm font-semibold text-green-700">💰 Costo: Q{parseFloat(c.costo).toFixed(2)}</p>
                   )}
                   <button
                     onClick={() => abrirModalCompetencia(c)}
@@ -275,7 +280,7 @@ export default function InscripcionPage() {
                         : 'bg-indigo-600 text-white hover:bg-indigo-700'
                     }`}
                   >
-                    {inscrito ? 'Ya inscrito' : (c.precio && parseFloat(c.precio) > 0 ? '💳 Pagar e Inscribirse' : 'Inscribirme')}
+                    {inscrito ? 'Ya inscrito' : (c.costo && parseFloat(c.costo) > 0 ? '💳 Pagar e Inscribirse' : 'Inscribirme')}
                   </button>
                 </div>
               );
@@ -284,14 +289,13 @@ export default function InscripcionPage() {
         )}
       </section>
 
-      {/* Modal de Formulario Dinámico */}
       <FormularioInscripcionModal
         isOpen={isModalOpen}
         onClose={cerrarModal}
         onSubmit={handleInscripcion}
         actividad={actividadSeleccionada}
         tipoActividad={tipoActividadSeleccionada}
-        participante={participante}
+        usuario={user}
       />
     </div>
   );

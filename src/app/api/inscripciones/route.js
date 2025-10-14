@@ -4,32 +4,32 @@ import { generateTokenWithPrefix } from "@/lib/tokenGenerator";
 
 export async function POST(req) {
   try {
-    const { participante_id, taller_id } = await req.json();
-    if (!participante_id || !taller_id)
+    const { usuario_id, taller_id } = await req.json();
+    if (!usuario_id || !taller_id)
       return Response.json({ error: "Datos incompletos" }, { status: 400 });
 
     // Verificar si ya está inscrito
     const [exists] = await db.query(
-      "SELECT * FROM inscripciones WHERE participante_id = ? AND taller_id = ?",
-      [participante_id, taller_id]
+      "SELECT * FROM inscripciones WHERE usuario_id = ? AND taller_id = ?",
+      [usuario_id, taller_id]
     );
     if (exists.length > 0)
       return Response.json({ error: "Ya está inscrito en esta actividad" }, { status: 400 });
 
-    // Obtener información del participante
-    const [participante] = await db.query(
-      "SELECT nombre, correo FROM participantes WHERE id = ?",
-      [participante_id]
+    // Obtener información del usuario
+    const [usuario] = await db.query(
+      "SELECT nombre, correo FROM usuarios WHERE id = ?",
+      [usuario_id]
     );
 
     // Obtener información del taller
     const [taller] = await db.query(
-      "SELECT nombre, fecha, horario FROM talleres WHERE id = ?",
+      "SELECT nombre, fecha, hora_inicio, hora_fin FROM talleres WHERE id = ?",
       [taller_id]
     );
 
-    if (!participante.length || !taller.length) {
-      return Response.json({ error: "Participante o taller no encontrado" }, { status: 404 });
+    if (!usuario.length || !taller.length) {
+      return Response.json({ error: "Usuario o taller no encontrado" }, { status: 404 });
     }
 
     // Generar token único para esta inscripción
@@ -37,14 +37,18 @@ export async function POST(req) {
 
     // Realizar la inscripción con token
     await db.query(
-      "INSERT INTO inscripciones (participante_id, taller_id, token) VALUES (?, ?, ?)",
-      [participante_id, taller_id, token]
+      "INSERT INTO inscripciones (usuario_id, taller_id, token) VALUES (?, ?, ?)",
+      [usuario_id, taller_id, token]
     );
 
     // Enviar correo de confirmación
+    const horario = taller[0].hora_inicio && taller[0].hora_fin 
+      ? `${taller[0].hora_inicio} - ${taller[0].hora_fin}` 
+      : null;
+
     const emailResult = await enviarCorreoInscripcion({
-      destinatario: participante[0].correo,
-      nombreParticipante: participante[0].nombre,
+      destinatario: usuario[0].correo,
+      nombreParticipante: usuario[0].nombre,
       nombreActividad: taller[0].nombre,
       tipoActividad: 'taller',
       fecha: taller[0].fecha ? new Date(taller[0].fecha).toLocaleDateString('es-GT', { 
@@ -52,7 +56,7 @@ export async function POST(req) {
         month: 'long', 
         day: 'numeric' 
       }) : null,
-      horario: taller[0].horario,
+      horario: horario,
     });
 
     if (!emailResult.success) {
@@ -65,31 +69,36 @@ export async function POST(req) {
     });
   } catch (error) {
     console.error("Error al inscribir:", error);
-    return Response.json({ error: "Error al inscribir participante" }, { status: 500 });
+    return Response.json({ error: "Error al inscribir usuario" }, { status: 500 });
   }
 }
 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-  const participanteId = searchParams.get("participante_id");
+  const usuarioId = searchParams.get("usuario_id");
 
   try {
-    if (!participanteId)
-      return Response.json({ error: "ID de participante requerido" }, { status: 400 });
+    if (!usuarioId)
+      return Response.json({ error: "ID de usuario requerido" }, { status: 400 });
 
     const [rows] = await db.query(
       `SELECT 
          i.id, 
          i.taller_id,
          t.nombre,
-         t.horario
+         t.hora_inicio,
+         t.hora_fin,
+         t.fecha,
+         i.estado,
+         i.fecha_inscripcion
        FROM inscripciones i
        JOIN talleres t ON i.taller_id = t.id
-       WHERE i.participante_id = ?`,
-      [participanteId]
+       WHERE i.usuario_id = ?
+       ORDER BY i.fecha_inscripcion DESC`,
+      [usuarioId]
     );
 
-    return Response.json(rows);
+    return Response.json(Array.isArray(rows) ? rows : []);
   } catch (error) {
     console.error("Error al obtener inscripciones:", error);
     return Response.json({ error: "Error al obtener inscripciones" }, { status: 500 });

@@ -1,70 +1,29 @@
-// src/app/api/asistencia/route.js
 import db from "@/lib/db";
 
-/* =========================================================
-   GET /api/asistencia → Lista todas las asistencias
-   Ahora incluye información de talleres y competencias
-   ========================================================= */
 export async function GET() {
   try {
-    // Get general attendance (old system, for backwards compatibility)
-    const [generalRows] = await db.query(`
+    const [rows] = await db.query(`
       SELECT 
-        a.id,
-        a.participante_id,
-        p.nombre,
-        p.tipo as tipo_participante,
-        NULL as actividad,
-        NULL as tipo_actividad,
-        a.registrado_en
-      FROM asistencia a
-      JOIN participantes p ON p.id = a.participante_id
-      ORDER BY a.registrado_en DESC
+        ag.id,
+        ag.usuario_id,
+        u.nombre,
+        u.tipo_usuario as tipo_participante,
+        ag.tipo as tipo_actividad,
+        ag.actividad_id,
+        CASE 
+          WHEN ag.tipo = 'taller' THEN t.nombre
+          WHEN ag.tipo = 'competencia' THEN c.nombre
+          ELSE 'Asistencia General'
+        END as actividad,
+        ag.registrado_en
+      FROM asistencia_general ag
+      JOIN usuarios u ON u.id = ag.usuario_id
+      LEFT JOIN talleres t ON ag.tipo = 'taller' AND t.id = ag.actividad_id
+      LEFT JOIN competencias c ON ag.tipo = 'competencia' AND c.id = ag.actividad_id
+      ORDER BY ag.registrado_en DESC
     `);
 
-    // Get workshop attendance
-    const [tallerRows] = await db.query(`
-      SELECT 
-        at.id,
-        at.participante_id,
-        p.nombre,
-        p.tipo as tipo_participante,
-        t.nombre as actividad,
-        'taller' as tipo_actividad,
-        at.registrado_en
-      FROM asistencia_talleres at
-      JOIN participantes p ON p.id = at.participante_id
-      JOIN talleres t ON t.id = at.taller_id
-      ORDER BY at.registrado_en DESC
-    `);
-
-    // Get competition attendance
-    const [competenciaRows] = await db.query(`
-      SELECT 
-        ac.id,
-        ac.participante_id,
-        p.nombre,
-        p.tipo as tipo_participante,
-        c.nombre as actividad,
-        'competencia' as tipo_actividad,
-        ac.registrado_en
-      FROM asistencia_competencias ac
-      JOIN participantes p ON p.id = ac.participante_id
-      JOIN competencias c ON c.id = ac.competencia_id
-      ORDER BY ac.registrado_en DESC
-    `);
-
-    // Combine all attendance records
-    const allRows = [
-      ...(Array.isArray(generalRows) ? generalRows : []),
-      ...(Array.isArray(tallerRows) ? tallerRows : []),
-      ...(Array.isArray(competenciaRows) ? competenciaRows : [])
-    ];
-
-    // Sort by date
-    allRows.sort((a, b) => new Date(b.registrado_en) - new Date(a.registrado_en));
-
-    return new Response(JSON.stringify(allRows), {
+    return new Response(JSON.stringify(rows), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -77,135 +36,102 @@ export async function GET() {
   }
 }
 
-/* =========================================================
-   POST /api/asistencia → Registra una asistencia
-   Ahora soporta tipo y id para talleres/competencias específicas
-   ========================================================= */
 export async function POST(request) {
-  const { participante_id, tipo, id } = await request.json();
+  const { usuario_id, tipo, actividad_id } = await request.json();
 
-  // ⚠️ Validar que se envíe el ID
-  if (!participante_id) {
+  if (!usuario_id || !tipo) {
     return new Response(
-      JSON.stringify({ error: 'Falta participante_id.' }),
+      JSON.stringify({ error: 'Faltan datos obligatorios (usuario_id y tipo).' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Validar que el tipo sea válido
+  if (!['general', 'taller', 'competencia'].includes(tipo)) {
+    return new Response(
+      JSON.stringify({ error: 'Tipo de asistencia inválido.' }),
+      { status: 400, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Si es taller o competencia, se requiere actividad_id
+  if ((tipo === 'taller' || tipo === 'competencia') && !actividad_id) {
+    return new Response(
+      JSON.stringify({ error: 'Se requiere actividad_id para asistencia de taller o competencia.' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
 
   try {
-    // Get participant info
-    const [participante] = await db.query(
-      "SELECT nombre FROM participantes WHERE id = ?",
-      [participante_id]
+    // Obtener info del usuario
+    const [usuario] = await db.query(
+      "SELECT nombre FROM usuarios WHERE id = ?",
+      [usuario_id]
     );
 
-    if (!participante || participante.length === 0) {
+    if (!usuario || usuario.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'Participante no encontrado.' }),
+        JSON.stringify({ error: 'Usuario no encontrado.' }),
         { status: 404, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const nombre = participante[0].nombre;
+    const nombre = usuario[0].nombre;
     let actividad = null;
 
-    // If tipo and id are provided, register specific workshop/competition attendance
-    if (tipo && id) {
-      if (tipo === 'taller') {
-        // Check if workshop exists
-        const [taller] = await db.query("SELECT nombre FROM talleres WHERE id = ?", [id]);
-        if (!taller || taller.length === 0) {
-          return new Response(
-            JSON.stringify({ error: 'Taller no encontrado.' }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-        actividad = taller[0].nombre;
-
-        // Check for duplicate
-        const [existing] = await db.query(
-          "SELECT id FROM asistencia_talleres WHERE participante_id = ? AND taller_id = ? AND DATE(registrado_en) = CURDATE()",
-          [participante_id, id]
-        );
-
-        if (existing.length > 0) {
-          return new Response(
-            JSON.stringify({ error: 'Ya registró asistencia a este taller hoy.' }),
-            { status: 409, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Register attendance
-        await db.execute(
-          'INSERT INTO asistencia_talleres (participante_id, taller_id) VALUES (?, ?)',
-          [participante_id, id]
-        );
-
-      } else if (tipo === 'competencia') {
-        // Check if competition exists
-        const [competencia] = await db.query("SELECT nombre FROM competencias WHERE id = ?", [id]);
-        if (!competencia || competencia.length === 0) {
-          return new Response(
-            JSON.stringify({ error: 'Competencia no encontrada.' }),
-            { status: 404, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-        actividad = competencia[0].nombre;
-
-        // Check for duplicate
-        const [existing] = await db.query(
-          "SELECT id FROM asistencia_competencias WHERE participante_id = ? AND competencia_id = ? AND DATE(registrado_en) = CURDATE()",
-          [participante_id, id]
-        );
-
-        if (existing.length > 0) {
-          return new Response(
-            JSON.stringify({ error: 'Ya registró asistencia a esta competencia hoy.' }),
-            { status: 409, headers: { 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Register attendance
-        await db.execute(
-          'INSERT INTO asistencia_competencias (participante_id, competencia_id) VALUES (?, ?)',
-          [participante_id, id]
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          nombre,
-          actividad,
-          tipo
-        }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } }
-      );
-
-    } else {
-      // General attendance (old system, for backwards compatibility)
-      const [existing] = await db.query(
-        "SELECT id FROM asistencia WHERE participante_id = ? AND DATE(registrado_en) = CURDATE()",
-        [participante_id]
-      );
-
-      if (existing.length > 0) {
+    // Validar actividad si corresponde
+    if (tipo === 'taller' && actividad_id) {
+      const [taller] = await db.query("SELECT nombre FROM talleres WHERE id = ?", [actividad_id]);
+      if (!taller || taller.length === 0) {
         return new Response(
-          JSON.stringify({ error: 'El participante ya registró asistencia hoy.' }),
-          { status: 409, headers: { 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Taller no encontrado.' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
       }
+      actividad = taller[0].nombre;
+    } else if (tipo === 'competencia' && actividad_id) {
+      const [competencia] = await db.query("SELECT nombre FROM competencias WHERE id = ?", [actividad_id]);
+      if (!competencia || competencia.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'Competencia no encontrada.' }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      actividad = competencia[0].nombre;
+    }
 
-      await db.execute(
-        'INSERT INTO asistencia (participante_id) VALUES (?)',
-        [participante_id]
-      );
+    // Verificar si ya registró asistencia hoy para esta actividad/tipo
+    const [existing] = await db.query(
+      `SELECT id FROM asistencia_general 
+       WHERE usuario_id = ? 
+       AND tipo = ? 
+       AND (actividad_id = ? OR (actividad_id IS NULL AND ? IS NULL))
+       AND DATE(registrado_en) = CURDATE()`,
+      [usuario_id, tipo, actividad_id || null, actividad_id || null]
+    );
 
+    if (existing.length > 0) {
       return new Response(
-        JSON.stringify({ success: true, nombre }),
-        { status: 201, headers: { 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Ya registró asistencia para esta actividad hoy.' }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    // Registrar asistencia
+    await db.execute(
+      'INSERT INTO asistencia_general (usuario_id, tipo, actividad_id) VALUES (?, ?, ?)',
+      [usuario_id, tipo, actividad_id || null]
+    );
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        nombre,
+        actividad,
+        tipo
+      }),
+      { status: 201, headers: { 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Error al registrar asistencia:', error);

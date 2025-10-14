@@ -60,13 +60,7 @@ export async function GET(req) {
   }
 }
 
-/* =========================================================
-   POST /api/asistencia/competencia
-   Body:
-     - Con token: { token: string, competencia_id: number }
-     - Con IDs:   { participante_id: number, competencia_id: number }
-   Registra asistencia por competencia (1 vez por día por participante y competencia)
-========================================================= */
+
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));

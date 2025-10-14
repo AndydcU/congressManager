@@ -20,14 +20,14 @@ export async function GET(req) {
     if (from && to) {
       const [rows] = await db.query(
         `SELECT 
-           DATE(a.registrado_en) AS fecha,
+           DATE(ag.registrado_en) AS fecha,
            COUNT(*) AS total,
-           SUM(CASE WHEN p.tipo = 'interno' THEN 1 ELSE 0 END) AS internos,
-           SUM(CASE WHEN p.tipo = 'externo' THEN 1 ELSE 0 END) AS externos
-         FROM asistencia a
-         JOIN participantes p ON p.id = a.participante_id
-         WHERE DATE(a.registrado_en) BETWEEN ? AND ?
-         GROUP BY DATE(a.registrado_en)
+           SUM(CASE WHEN u.tipo_usuario = 'interno' THEN 1 ELSE 0 END) AS internos,
+           SUM(CASE WHEN u.tipo_usuario = 'externo' THEN 1 ELSE 0 END) AS externos
+         FROM asistencia_general ag
+         JOIN usuarios u ON u.id = ag.usuario_id
+         WHERE DATE(ag.registrado_en) BETWEEN ? AND ?
+         GROUP BY DATE(ag.registrado_en)
          ORDER BY fecha DESC`,
         [from, to]
       );
@@ -43,11 +43,11 @@ export async function GET(req) {
       const [rows] = await db.query(
         `SELECT 
            COUNT(*) AS total,
-           SUM(CASE WHEN p.tipo = 'interno' THEN 1 ELSE 0 END) AS internos,
-           SUM(CASE WHEN p.tipo = 'externo' THEN 1 ELSE 0 END) AS externos
-         FROM asistencia a
-         JOIN participantes p ON p.id = a.participante_id
-         WHERE DATE(a.registrado_en) = ?`,
+           SUM(CASE WHEN u.tipo_usuario = 'interno' THEN 1 ELSE 0 END) AS internos,
+           SUM(CASE WHEN u.tipo_usuario = 'externo' THEN 1 ELSE 0 END) AS externos
+         FROM asistencia_general ag
+         JOIN usuarios u ON u.id = ag.usuario_id
+         WHERE DATE(ag.registrado_en) = ?`,
         [date]
       );
 
@@ -62,11 +62,11 @@ export async function GET(req) {
     const [rows] = await db.query(
       `SELECT 
          COUNT(*) AS total,
-         SUM(CASE WHEN p.tipo = 'interno' THEN 1 ELSE 0 END) AS internos,
-         SUM(CASE WHEN p.tipo = 'externo' THEN 1 ELSE 0 END) AS externos
-       FROM asistencia a
-       JOIN participantes p ON p.id = a.participante_id
-       WHERE DATE(a.registrado_en) = CURDATE()`
+         SUM(CASE WHEN u.tipo_usuario = 'interno' THEN 1 ELSE 0 END) AS internos,
+         SUM(CASE WHEN u.tipo_usuario = 'externo' THEN 1 ELSE 0 END) AS externos
+       FROM asistencia_general ag
+       JOIN usuarios u ON u.id = ag.usuario_id
+       WHERE DATE(ag.registrado_en) = CURDATE()`
     );
 
     const today = new Date();

@@ -1,104 +1,113 @@
 import db from "@/lib/db";
 import { enviarComprobantePago } from "@/lib/email";
 
-/* =========================================================
-   POST /api/pagos → Registra un pago
-   GET /api/pagos → Lista pagos (con filtro opcional por participante)
-   
-   Requiere tabla `pagos` en la BD:
-
-   CREATE TABLE pagos (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     participante_id INT NOT NULL,
-     actividad_id INT NOT NULL,
-     tipo_actividad ENUM('taller', 'competencia') NOT NULL,
-     monto DECIMAL(10,2) NOT NULL,
-     metodo_pago ENUM('efectivo', 'transferencia', 'tarjeta') NOT NULL,
-     estado ENUM('pendiente', 'completado', 'rechazado') DEFAULT 'completado',
-     fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-     FOREIGN KEY (participante_id) REFERENCES participantes(id)
-   );
-========================================================= */
-
 export async function POST(req) {
   try {
-    const { participante_id, actividad_id, tipo_actividad, monto, metodo_pago } = await req.json();
+    const { usuario_id, actividad_id, tipo_actividad, monto, metodo_pago } = await req.json();
     
-    if (!participante_id || !actividad_id || !tipo_actividad || !monto) {
+    if (!usuario_id || !tipo_actividad || !monto) {
       return new Response(
         JSON.stringify({ error: "Datos incompletos para procesar el pago" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Obtener información del participante
-    const [participante] = await db.query(
-      "SELECT nombre, correo FROM participantes WHERE id = ?",
-      [participante_id]
+    // Validar tipo_actividad
+    if (!['taller', 'competencia', 'congreso'].includes(tipo_actividad)) {
+      return new Response(
+        JSON.stringify({ error: "Tipo de actividad inválido" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Si es taller o competencia, se requiere actividad_id
+    if ((tipo_actividad === 'taller' || tipo_actividad === 'competencia') && !actividad_id) {
+      return new Response(
+        JSON.stringify({ error: "Se requiere actividad_id para pagos de taller o competencia" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Obtener información del usuario
+    const [usuario] = await db.query(
+      "SELECT nombre, correo FROM usuarios WHERE id = ?",
+      [usuario_id]
     );
 
-    if (!Array.isArray(participante) || participante.length === 0) {
+    if (!Array.isArray(usuario) || usuario.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Participante no encontrado" }),
+        JSON.stringify({ error: "Usuario no encontrado" }),
         { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Obtener información de la actividad
-    const tablaActividad = tipo_actividad === 'taller' ? 'talleres' : 'competencias';
-    const [actividad] = await db.query(
-      `SELECT nombre FROM ${tablaActividad} WHERE id = ?`,
-      [actividad_id]
-    );
+    let actividad = null;
 
-    if (!Array.isArray(actividad) || actividad.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Actividad no encontrada" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      );
+    // Obtener información de la actividad si corresponde
+    if (tipo_actividad === 'taller' && actividad_id) {
+      const [taller] = await db.query("SELECT nombre FROM talleres WHERE id = ?", [actividad_id]);
+      if (!Array.isArray(taller) || taller.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Taller no encontrado" }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      actividad = taller[0];
+    } else if (tipo_actividad === 'competencia' && actividad_id) {
+      const [competencia] = await db.query("SELECT nombre FROM competencias WHERE id = ?", [actividad_id]);
+      if (!Array.isArray(competencia) || competencia.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Competencia no encontrada" }),
+          { status: 404, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      actividad = competencia[0];
     }
 
     // Verificar si ya existe un pago para esta actividad
-    const [pagoExistente] = await db.query(
-      "SELECT id FROM pagos WHERE participante_id = ? AND actividad_id = ? AND tipo_actividad = ?",
-      [participante_id, actividad_id, tipo_actividad]
-    );
-
-    if (Array.isArray(pagoExistente) && pagoExistente.length > 0) {
-      return new Response(
-        JSON.stringify({ error: "Ya existe un pago registrado para esta actividad" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+    if (actividad_id) {
+      const [pagoExistente] = await db.query(
+        "SELECT id FROM pagos WHERE usuario_id = ? AND actividad_id = ? AND tipo_actividad = ?",
+        [usuario_id, actividad_id, tipo_actividad]
       );
+
+      if (Array.isArray(pagoExistente) && pagoExistente.length > 0) {
+        return new Response(
+          JSON.stringify({ error: "Ya existe un pago registrado para esta actividad" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Registrar el pago
     const estado = metodo_pago === 'efectivo' ? 'pendiente' : 'completado';
     
     const [result] = await db.query(
-      "INSERT INTO pagos (participante_id, actividad_id, tipo_actividad, monto, metodo_pago, estado) VALUES (?, ?, ?, ?, ?, ?)",
-      [participante_id, actividad_id, tipo_actividad, monto, metodo_pago, estado]
+      "INSERT INTO pagos (usuario_id, actividad_id, tipo_actividad, monto, metodo_pago, estado) VALUES (?, ?, ?, ?, ?, ?)",
+      [usuario_id, actividad_id || null, tipo_actividad, monto, metodo_pago || 'efectivo', estado]
     );
 
     // Enviar comprobante de pago por correo
-    const emailResult = await enviarComprobantePago({
-      destinatario: participante[0].correo,
-      nombreParticipante: participante[0].nombre,
-      nombreActividad: actividad[0].nombre,
-      tipoActividad: tipo_actividad,
-      monto: monto,
-      metodoPago: metodo_pago,
-    });
+    if (actividad) {
+      const emailResult = await enviarComprobantePago({
+        destinatario: usuario[0].correo,
+        nombreParticipante: usuario[0].nombre,
+        nombreActividad: actividad.nombre,
+        tipoActividad: tipo_actividad,
+        monto: monto,
+        metodoPago: metodo_pago || 'efectivo',
+      });
 
-    if (!emailResult.success) {
-      console.warn('⚠️ Pago registrado pero el comprobante no pudo ser enviado:', emailResult.error);
+      if (!emailResult.success) {
+        console.warn('⚠️ Pago registrado pero el comprobante no pudo ser enviado:', emailResult.error);
+      }
     }
 
     return new Response(
       JSON.stringify({ 
         message: "Pago registrado exitosamente", 
         id: result.insertId,
-        estado,
-        comprobanteEnviado: emailResult.success
+        estado
       }),
       { status: 201, headers: { "Content-Type": "application/json" } }
     );
@@ -114,23 +123,23 @@ export async function POST(req) {
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const participante_id = searchParams.get('participante_id');
+    const usuario_id = searchParams.get('usuario_id');
     const actividad_id = searchParams.get('actividad_id');
     const tipo_actividad = searchParams.get('tipo_actividad');
 
     let query = `
       SELECT p.*, 
-             part.nombre as participante_nombre,
-             part.correo as participante_correo
+             u.nombre as usuario_nombre,
+             u.correo as usuario_correo
       FROM pagos p
-      JOIN participantes part ON p.participante_id = part.id
+      JOIN usuarios u ON p.usuario_id = u.id
       WHERE 1=1
     `;
     const params = [];
 
-    if (participante_id) {
-      query += " AND p.participante_id = ?";
-      params.push(participante_id);
+    if (usuario_id) {
+      query += " AND p.usuario_id = ?";
+      params.push(usuario_id);
     }
 
     if (actividad_id) {

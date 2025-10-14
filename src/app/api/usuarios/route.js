@@ -1,5 +1,6 @@
 import db from "@/lib/db";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 export async function POST(req) {
   try {
@@ -37,7 +38,7 @@ export async function POST(req) {
       );
     }
 
-    // 🔍 Verificar si ya existe el correo
+    // Verificar si ya existe el correo
     const [existing] = await db.query(
       "SELECT id FROM usuarios WHERE correo = ?",
       [correo]
@@ -49,26 +50,27 @@ export async function POST(req) {
       );
     }
 
-    // 🔒 Encriptar contraseña
+    // Encriptar contraseña
     const hashed = await bcrypt.hash(password, 10);
 
-    // 🧾 Crear usuario
-    const [userResult] = await db.execute(
-      "INSERT INTO usuarios (nombre, correo, contrasena, rol) VALUES (?, ?, ?, 'usuario')",
-      [nombre, correo, hashed]
-    );
+    // Generar QR token único
+    const qr_token = crypto.randomBytes(32).toString('hex');
 
-    // 👤 Crear registro en participantes vinculado
-    await db.execute(
-      "INSERT INTO participantes (nombre, correo, colegio, telefono, tipo, carnet, grado) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    // Crear usuario con todos los datos
+    const [userResult] = await db.execute(
+      `INSERT INTO usuarios 
+       (nombre, correo, contrasena, telefono, colegio, tipo_usuario, carnet, grado, qr_token, rol) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'usuario')`,
       [
         nombre, 
         correo, 
-        tipo_usuario === 'externo' ? (colegio || "") : "", 
-        telefono || "", 
+        hashed,
+        telefono || null,
+        tipo_usuario === 'externo' ? (colegio || null) : null,
         tipo_usuario,
-        tipo_usuario === 'interno' ? (carnet || "") : "",
-        tipo_usuario === 'interno' ? (grado || "") : ""
+        tipo_usuario === 'interno' ? (carnet || null) : null,
+        tipo_usuario === 'interno' ? (grado || null) : null,
+        qr_token
       ]
     );
 
@@ -84,6 +86,38 @@ export async function POST(req) {
     console.error("Error en registro:", error);
     return new Response(
       JSON.stringify({ error: "Error al registrar usuario." }),
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (id) {
+      const [rows] = await db.query(
+        "SELECT id, nombre, correo, telefono, colegio, tipo_usuario, carnet, grado, qr_token, rol FROM usuarios WHERE id = ?",
+        [id]
+      );
+      return new Response(
+        JSON.stringify(rows[0] || null),
+        { status: 200 }
+      );
+    }
+
+    const [rows] = await db.query(
+      "SELECT id, nombre, correo, telefono, colegio, tipo_usuario, carnet, grado, rol, creado_en FROM usuarios ORDER BY creado_en DESC"
+    );
+    return new Response(
+      JSON.stringify(rows),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Error al obtener usuarios:", error);
+    return new Response(
+      JSON.stringify({ error: "Error al obtener usuarios." }),
       { status: 500 }
     );
   }

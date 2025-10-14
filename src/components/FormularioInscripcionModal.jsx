@@ -33,6 +33,9 @@ export default function FormularioInscripcionModal({
     // Campos específicos para talleres
     nivel_conocimiento: '',
     expectativas: '',
+    
+    // Campos de pago
+    metodo_pago: 'efectivo',
   });
 
   const [loading, setLoading] = useState(false);
@@ -350,29 +353,64 @@ export default function FormularioInscripcionModal({
               <div className="bg-white rounded-lg p-3 border border-green-200">
                 <p className="font-medium text-gray-800 mb-1">Costo de la actividad:</p>
                 <p className="text-2xl font-bold text-green-700">
-                  {actividad?.precio > 0 ? `Q${Number(actividad.precio).toFixed(2)}` : 'GRATIS'}
+                  {actividad?.costo && parseFloat(actividad.costo) > 0 ? `Q${parseFloat(actividad.costo).toFixed(2)}` : 'GRATIS'}
                 </p>
               </div>
               
-              {actividad?.precio > 0 && (
-                <div className="bg-white rounded-lg p-3 border border-green-200 space-y-2">
-                  <p className="font-medium text-gray-800">Métodos de pago disponibles:</p>
-                  <ul className="text-gray-700 space-y-1 ml-4">
-                    <li className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      Efectivo (en ventanilla)
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      Transferencia bancaria
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="text-green-600">✓</span>
-                      Tarjeta de crédito/débito
-                    </li>
-                  </ul>
-                  <p className="text-xs text-gray-600 mt-3 bg-yellow-50 p-2 rounded border border-yellow-200">
-                    <strong>Nota:</strong> El pago deberá realizarse previo al evento. Recibirás instrucciones detalladas después de confirmar tu inscripción.
+              {actividad?.costo && parseFloat(actividad.costo) > 0 && (
+                <div className="bg-white rounded-lg p-3 border border-green-200 space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-800">Método de Pago *</label>
+                    <select
+                      name="metodo_pago"
+                      value={formData.metodo_pago}
+                      onChange={handleChange}
+                      required
+                      className="w-full border rounded px-3 py-2 text-sm"
+                    >
+                      <option value="efectivo">Efectivo (en ventanilla)</option>
+                      <option value="transferencia">Transferencia Bancaria</option>
+                      <option value="tarjeta">Tarjeta de Crédito/Débito</option>
+                    </select>
+                  </div>
+
+                  {/* Instrucciones según método de pago */}
+                  {formData.metodo_pago === 'transferencia' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs">
+                      <p className="font-semibold mb-2 text-blue-900">📱 Instrucciones para Transferencia:</p>
+                      <div className="space-y-1 text-blue-800">
+                        <p><strong>Banco:</strong> Banco Industrial</p>
+                        <p><strong>Cuenta:</strong> 1234567890</p>
+                        <p><strong>Nombre:</strong> Congreso de Tecnología UMG</p>
+                        <p className="mt-2 pt-2 border-t border-blue-300">
+                          Envía el comprobante a: <strong>proyectocongresoumg@gmail.com</strong>
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {formData.metodo_pago === 'tarjeta' && (
+                    <div className="bg-purple-50 border border-purple-200 rounded p-3 text-xs">
+                      <p className="font-semibold mb-2 text-purple-900">💳 Pago con Tarjeta:</p>
+                      <p className="text-purple-800">
+                        Se registrará tu solicitud de pago. Recibirás un correo con instrucciones para completar el pago de forma segura.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {formData.metodo_pago === 'efectivo' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded p-3 text-xs">
+                      <p className="font-semibold mb-2 text-amber-900">💵 Pago en Efectivo:</p>
+                      <div className="space-y-1 text-amber-800">
+                        <p>Realiza el pago en la recepción del congreso</p>
+                        <p><strong>Horario:</strong> Lunes a Viernes de 8:00 AM a 5:00 PM</p>
+                        <p><strong>Ubicación:</strong> Campus UMG - Edificio Principal</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-gray-600 bg-yellow-50 p-2 rounded border border-yellow-200">
+                    <strong>Importante:</strong> Tu inscripción quedará en estado "pendiente de pago". Una vez confirmado el pago, se activará tu participación.
                   </p>
                 </div>
               )}

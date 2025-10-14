@@ -109,17 +109,19 @@ export default function Home() {
             {talleres.length === 0 ? (
               <p className="col-span-3 text-center text-gray-500">Cargando talleres...</p>
             ) : (
-              talleres.map((t) => (
-                <div key={t.id} className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-xl font-semibold mb-2">{t.nombre}</h3>
-                  <p className="text-gray-600 text-sm mb-3">{t.descripcion}</p>
-                  {t.fecha_realizacion && (
-                    <p className="text-sm text-gray-500">📅 Fecha: {new Date(t.fecha_realizacion).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                  )}
-                  <p className="text-sm text-gray-500">🕐 Horario: {t.horario}</p>
-                  <p className="text-sm text-gray-500">👥 Cupo: {t.cupo}</p>
-                </div>
-              ))
+            talleres.map((t) => (
+              <div key={t.id} className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-xl font-semibold mb-2">{t.nombre}</h3>
+                <p className="text-gray-600 text-sm mb-3">{t.descripcion}</p>
+                {t.fecha && (
+                  <p className="text-sm text-gray-500">📅 Fecha: {new Date(t.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                )}
+                {(t.hora_inicio && t.hora_fin) && (
+                  <p className="text-sm text-gray-500">🕐 Horario: {t.hora_inicio} - {t.hora_fin}</p>
+                )}
+                <p className="text-sm text-gray-500">👥 Cupo: {t.cupo}</p>
+              </div>
+            ))
             )}
           </div>
           <div className="text-center mt-8">
@@ -144,10 +146,12 @@ export default function Home() {
               <div key={c.id} className="bg-white rounded-lg shadow p-6 border-l-4 border-indigo-600">
                 <h3 className="text-xl font-semibold mb-2">{c.nombre}</h3>
                 <p className="text-gray-600 text-sm mb-3">{c.descripcion}</p>
-                {c.fecha_realizacion && (
-                  <p className="text-sm text-gray-500">📅 Fecha: {new Date(c.fecha_realizacion).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                {c.fecha && (
+                  <p className="text-sm text-gray-500">📅 Fecha: {new Date(c.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 )}
-                <p className="text-sm text-gray-500">🕐 Horario: {c.horario}</p>
+                {(c.hora_inicio && c.hora_fin) && (
+                  <p className="text-sm text-gray-500">🕐 Horario: {c.hora_inicio} - {c.hora_fin}</p>
+                )}
                 <p className="text-sm text-gray-500">👥 Cupo: {c.cupo}</p>
               </div>
             ))

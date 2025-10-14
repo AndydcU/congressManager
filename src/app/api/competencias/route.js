@@ -1,32 +1,15 @@
 import db from "@/lib/db";
 
-/* =========================================================
-   GET /api/competencias → Lista todas las competencias
-   POST /api/competencias → Crea una nueva competencia
-   Requiere tabla `competencias` en la BD:
-
-   CREATE TABLE competencias (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     nombre VARCHAR(100) NOT NULL,
-     descripcion TEXT,
-     horario VARCHAR(100),
-     cupo INT DEFAULT 0,
-     creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-   );
-========================================================= */
-
 export async function GET() {
   try {
-    // Get competencias with participant count
     const [rows] = await db.query(`
       SELECT 
         c.*,
-        COALESCE(
-          (SELECT COUNT(DISTINCT participante_id) 
-           FROM inscripciones_competencias 
-           WHERE competencia_id = c.id), 0
-        ) as participantes_inscritos
+        COUNT(DISTINCT ic.id) as inscritos
       FROM competencias c
+      LEFT JOIN inscripciones_competencias ic ON ic.competencia_id = c.id
+      WHERE c.activo = 1
+      GROUP BY c.id
       ORDER BY c.creado_en DESC
     `);
     return new Response(JSON.stringify(Array.isArray(rows) ? rows : []), {
@@ -35,7 +18,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Error al obtener competencias:", error);
-    // Return empty array instead of error to prevent page crash
     return new Response(JSON.stringify([]), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -45,7 +27,10 @@ export async function GET() {
 
 export async function POST(req) {
   try {
-    const { nombre, descripcion, horario, cupo, fecha, lugar, precio, fecha_realizacion } = await req.json();
+    const data = await req.json();
+    const { nombre, descripcion, hora_inicio, hora_fin, cupo, fecha, lugar } = data;
+    const costo = data.costo ?? data.precio ?? 0;
+
     if (!nombre) {
       return new Response(
         JSON.stringify({ error: "Nombre requerido" }),
@@ -54,11 +39,11 @@ export async function POST(req) {
     }
 
     const normalizedCupo = Number.isFinite(Number(cupo)) ? Number(cupo) : 0;
-    const normalizedPrecio = Number.isFinite(Number(precio)) ? Number(precio) : 0;
+    const normalizedCosto = Number.isFinite(Number(costo)) ? Number(costo) : 0;
 
     const [result] = await db.query(
-      "INSERT INTO competencias (nombre, descripcion, horario, cupo, precio, fecha_realizacion, fecha, lugar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [nombre, descripcion || null, horario || null, normalizedCupo, normalizedPrecio, fecha_realizacion || null, fecha || null, lugar || null]
+      "INSERT INTO competencias (nombre, descripcion, hora_inicio, hora_fin, cupo, costo, fecha, lugar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [nombre, descripcion || null, hora_inicio || null, hora_fin || null, normalizedCupo, normalizedCosto, fecha || null, lugar || null]
     );
 
     return new Response(
@@ -76,7 +61,10 @@ export async function POST(req) {
 
 export async function PUT(req) {
   try {
-    const { id, nombre, descripcion, horario, cupo, precio, fecha_realizacion, fecha, lugar } = await req.json();
+    const data = await req.json();
+    const { id, nombre, descripcion, hora_inicio, hora_fin, cupo, fecha, lugar } = data;
+    const costo = data.costo ?? data.precio ?? 0;
+
     if (!id || !nombre) {
       return new Response(
         JSON.stringify({ error: "ID y nombre requeridos" }),
@@ -84,12 +72,21 @@ export async function PUT(req) {
       );
     }
 
+    const [current] = await db.query("SELECT fecha FROM competencias WHERE id = ?", [id]);
+    if (current.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Competencia no encontrada" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const normalizedCupo = Number.isFinite(Number(cupo)) ? Number(cupo) : 0;
-    const normalizedPrecio = Number.isFinite(Number(precio)) ? Number(precio) : 0;
+    const normalizedCosto = Number.isFinite(Number(costo)) ? Number(costo) : 0;
+    const finalFecha = fecha || current[0].fecha;
 
     await db.query(
-      "UPDATE competencias SET nombre = ?, descripcion = ?, horario = ?, cupo = ?, precio = ?, fecha_realizacion = ?, fecha = ?, lugar = ? WHERE id = ?",
-      [nombre, descripcion || null, horario || null, normalizedCupo, normalizedPrecio, fecha_realizacion || null, fecha || null, lugar || null, id]
+      "UPDATE competencias SET nombre = ?, descripcion = ?, hora_inicio = ?, hora_fin = ?, cupo = ?, costo = ?, fecha = ?, lugar = ? WHERE id = ?",
+      [nombre, descripcion || null, hora_inicio || null, hora_fin || null, normalizedCupo, normalizedCosto, finalFecha, lugar || null, id]
     );
 
     return new Response(
@@ -115,10 +112,10 @@ export async function DELETE(req) {
       );
     }
 
-    await db.query("DELETE FROM competencias WHERE id = ?", [id]);
+    await db.query("UPDATE competencias SET activo = 0 WHERE id = ?", [id]);
 
     return new Response(
-      JSON.stringify({ message: "Competencia eliminada" }),
+      JSON.stringify({ message: "Competencia desactivada" }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
