@@ -126,7 +126,7 @@ export default function AdminPanel() {
       <section className="bg-white rounded-lg shadow p-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Resumen de asistencia (hoy)</h2>
-          <button onClick={fetchToday} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded">Refrescar</button>
+        <button onClick={fetchToday} className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded">Refrescar</button>
         </div>
         {loadingToday ? (
           <p className="text-gray-500">Cargando...</p>
@@ -188,8 +188,8 @@ export default function AdminPanel() {
                 {rangeRows.length === 0 ? (
                   <tr><td colSpan={4} className="py-3 text-gray-500">Sin datos</td></tr>
                 ) : (
-                  rangeRows.map((r) => (
-                    <tr key={r.fecha} className="border-t">
+                  rangeRows.map((r, i) => (
+                    <tr key={`range-${r.fecha}-${i}`} className="border-t">
                       <td className="py-2 pr-4">{r.fecha}</td>
                       <td className="py-2 pr-4">{r.total}</td>
                       <td className="py-2 pr-4">{r.internos}</td>
@@ -228,8 +228,11 @@ export default function AdminPanel() {
                 {recent.length === 0 ? (
                   <tr><td colSpan={4} className="py-3 text-gray-500">Sin registros</td></tr>
                 ) : (
-                  recent.map((r) => (
-                    <tr key={r.id} className="border-t">
+                  recent.map((r, i) => (
+                    <tr
+                      key={`asist-${r.tipo ?? 'gen'}-${r.id ?? 'x'}-${r.participante_id ?? 'x'}-${new Date(r.registrado_en).getTime()}-${i}`}
+                      className="border-t"
+                    >
                       <td className="py-2 pr-4">{new Date(r.registrado_en).toLocaleString()}</td>
                       <td className="py-2 pr-4">{r.nombre}</td>
                       <td className="py-2 pr-4 capitalize">{r.tipo}</td>
