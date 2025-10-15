@@ -11,7 +11,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es-GT">
-      <body className="min-h-screen bg-gray-50 text-gray-800 flex flex-col">
+      <body className="min-h-screen bg-gradient-to-br from-gray-100 via-gray-50 to-slate-100 text-gray-900 flex flex-col">
         <DiplomaAutoGenerator />
         <header className="bg-white shadow-md">
           <Navbar />

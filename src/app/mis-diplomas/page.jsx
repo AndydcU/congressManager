@@ -178,9 +178,9 @@ export default function MisDiplomasPage() {
                   </div>
                 )}
                 
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 text-white">
-                  <h3 className="font-bold text-lg line-clamp-2">{diploma.actividad_nombre}</h3>
-                  <p className="text-sm opacity-90 mt-1">
+                <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-4 border-b-2 border-gray-300">
+                  <h3 className="font-bold text-lg line-clamp-2 text-gray-900">{diploma.actividad_nombre}</h3>
+                  <p className="text-sm text-gray-600 mt-1">
                     {diploma.tipo.charAt(0).toUpperCase() + diploma.tipo.slice(1)}
                   </p>
                 </div>
@@ -214,7 +214,7 @@ export default function MisDiplomasPage() {
                   <div className="space-y-2 pt-2">
                     <button
                       onClick={() => descargarDiploma(diploma)}
-                      className="w-full py-2.5 rounded-lg font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-2"
+                      className="w-full py-2.5 rounded-lg font-semibold transition-all bg-gradient-to-r from-sky-400 to-blue-500 text-white hover:from-sky-500 hover:to-blue-600 flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105"
                     >
                       <span>📥</span>
                       <span>Descargar Diploma</span>
@@ -223,10 +223,10 @@ export default function MisDiplomasPage() {
                     <button
                       onClick={() => enviarDiplomaPorCorreo(diploma)}
                       disabled={enviandoDiploma === diploma.id}
-                      className={`w-full py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+                      className={`w-full py-2.5 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
                         enviandoDiploma === diploma.id
                           ? 'bg-gray-300 text-gray-600 cursor-wait'
-                          : 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gradient-to-r from-slate-500 to-slate-700 text-white hover:from-slate-600 hover:to-slate-800 shadow-md hover:shadow-lg transform hover:scale-105'
                       }`}
                     >
                       <span>{enviandoDiploma === diploma.id ? '⏳' : '📧'}</span>
