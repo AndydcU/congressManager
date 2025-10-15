@@ -1,8 +1,8 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function PagoPage() {
+function PagoContent() {
   const [user, setUser] = useState(null);
   const [participanteId, setParticipanteId] = useState(null);
   const [actividad, setActividad] = useState(null);
@@ -238,5 +238,13 @@ export default function PagoPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function PagoPage() {
+  return (
+    <Suspense fallback={<p className="text-center mt-10">Cargando...</p>}>
+      <PagoContent />
+    </Suspense>
   );
 }
