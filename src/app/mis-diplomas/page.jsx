@@ -1,16 +1,13 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function MisDiplomasPage() {
   const [user, setUser] = useState(null);
-  const [participanteId, setParticipanteId] = useState(null);
   const [diplomas, setDiplomas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [generandoDiploma, setGenerandoDiploma] = useState(null);
   const [enviandoDiploma, setEnviandoDiploma] = useState(null);
   const [mensaje, setMensaje] = useState(null);
-  const canvasRef = useRef(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -21,24 +18,19 @@ export default function MisDiplomasPage() {
     }
     const parsed = JSON.parse(storedUser);
     setUser(parsed);
-    
-    const storedPid = localStorage.getItem('participante_id');
-    if (storedPid) {
-      const pid = parseInt(storedPid);
-      setParticipanteId(pid);
-      fetchDiplomas(pid);
-    } else {
-      setLoading(false);
-    }
+    fetchDiplomas(parsed.id);
   }, [router]);
 
-  const fetchDiplomas = async (pid) => {
+  const fetchDiplomas = async (userId) => {
     try {
-      const res = await fetch(`/api/diplomas?participante_id=${pid}`);
+      setLoading(true);
+      const res = await fetch(`/api/diplomas?usuario_id=${userId}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Error al cargar diplomas');
       const data = await res.json();
       setDiplomas(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error cargando diplomas:', error);
+      setMensaje({ tipo: 'error', texto: 'Error al cargar diplomas' });
     } finally {
       setLoading(false);
     }
@@ -54,7 +46,7 @@ export default function MisDiplomasPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           diploma_id: diploma.id,
-          participante_id: participanteId,
+          usuario_id: user.id,
         }),
       });
 
@@ -65,6 +57,8 @@ export default function MisDiplomasPage() {
           tipo: 'success',
           texto: `✅ Diploma enviado exitosamente a ${user.correo}`,
         });
+        // Actualizar lista de diplomas
+        fetchDiplomas(user.id);
       } else {
         setMensaje({
           tipo: 'error',
@@ -78,183 +72,188 @@ export default function MisDiplomasPage() {
       });
     } finally {
       setEnviandoDiploma(null);
-      // Ocultar mensaje después de 5 segundos
       setTimeout(() => setMensaje(null), 5000);
     }
   };
 
-  const generarDiploma = async (diploma) => {
-    setGenerandoDiploma(diploma.id);
-    
-    // Create canvas for diploma
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    
-    // Set canvas size
-    canvas.width = 1200;
-    canvas.height = 850;
-    
-    // Background gradient
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#1e3a8a');
-    gradient.addColorStop(1, '#3b82f6');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Border
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 20;
-    ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
-    
-    // Inner border
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(60, 60, canvas.width - 120, canvas.height - 120);
-    
-    // Title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 60px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('CERTIFICADO DE PARTICIPACIÓN', canvas.width / 2, 180);
-    
-    // Subtitle
-    ctx.font = 'italic 30px serif';
-    ctx.fillText('Se otorga a:', canvas.width / 2, 280);
-    
-    // Participant name
-    ctx.font = 'bold 50px serif';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText(user.nombre.toUpperCase(), canvas.width / 2, 360);
-    
-    // Text
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '28px serif';
-    ctx.fillText('Por su participación en', canvas.width / 2, 440);
-    
-    // Activity name
-    ctx.font = 'bold 38px serif';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText(diploma.actividad_nombre, canvas.width / 2, 500);
-    
-    // Type
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'italic 24px serif';
-    ctx.fillText(`(${diploma.tipo})`, canvas.width / 2, 545);
-    
-    // Date
-    ctx.font = '22px serif';
-    const fecha = new Date(diploma.fecha_emision).toLocaleDateString('es-GT', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    ctx.fillText(`Emitido el ${fecha}`, canvas.width / 2, 650);
-    
-    // Footer
-    ctx.font = 'italic 20px serif';
-    ctx.fillText('Congreso de Tecnología', canvas.width / 2, 750);
-    
-    // Download
-    setTimeout(() => {
-      const link = document.createElement('a');
-      link.download = `diploma-${diploma.actividad_nombre.replace(/\s+/g, '-')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      setGenerandoDiploma(null);
-    }, 500);
+  const descargarDiploma = (diploma) => {
+    window.open(diploma.archivo_url, '_blank');
   };
 
   if (!user) return <p className="text-center mt-10">Verificando sesión...</p>;
-  if (loading) return <p className="text-center mt-10">Cargando diplomas...</p>;
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto"></div>
+          <p className="text-gray-500 mt-4">Cargando diplomas...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-8">
-      <header className="text-center">
-        <h1 className="text-4xl font-bold mb-2">🎓 Mis Diplomas</h1>
-        <p className="text-gray-600">Visualiza y descarga tus certificados de participación</p>
+    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-8">
+      <header className="text-center space-y-2">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          🎓 Mis Diplomas
+        </h1>
+        <p className="text-gray-600">Visualiza, descarga y comparte tus certificados de participación</p>
       </header>
 
       {mensaje && (
         <div
-          className={`p-4 rounded-lg ${
+          className={`p-4 rounded-lg flex items-center gap-3 ${
             mensaje.tipo === 'success'
-              ? 'bg-green-100 text-green-800 border border-green-200'
-              : 'bg-red-100 text-red-800 border border-red-200'
+              ? 'bg-green-100 text-green-800 border-2 border-green-200'
+              : 'bg-red-100 text-red-800 border-2 border-red-200'
           }`}
         >
-          {mensaje.texto}
+          <span className="text-2xl">{mensaje.tipo === 'success' ? '✅' : '⚠️'}</span>
+          <span>{mensaje.texto}</span>
         </div>
       )}
 
       {diplomas.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-          <p className="text-yellow-800 text-lg mb-2">📋 Aún no tienes diplomas disponibles</p>
-          <p className="text-gray-600 text-sm">
-            Los diplomas se generan automáticamente al completar talleres y competencias.
-            <br />
-            Asegúrate de registrar tu asistencia en cada sesión.
+        <div className="bg-gradient-to-br from-blue-50 to-purple-50 border-2 border-blue-200 rounded-xl p-12 text-center">
+          <div className="text-6xl mb-4">📋</div>
+          <p className="text-blue-900 text-xl font-semibold mb-2">
+            Aún no tienes diplomas disponibles
+          </p>
+          <p className="text-gray-600 max-w-md mx-auto">
+            Los diplomas se generan automáticamente cuando:
+          </p>
+          <ul className="text-left max-w-md mx-auto mt-4 space-y-2 text-gray-700">
+            <li className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span>Completas tu asistencia a un taller</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span>Participas en una competencia</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-600">✓</span>
+              <span>Ganas un lugar en una competencia</span>
+            </li>
+          </ul>
+          <p className="text-sm text-gray-500 mt-6">
+            Recuerda registrar tu asistencia en cada sesión usando tu código QR
           </p>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {diplomas.map((diploma) => (
-            <div
-              key={diploma.id}
-              className="bg-white rounded-lg shadow-lg overflow-hidden border-2 border-blue-100 hover:shadow-xl transition-shadow"
-            >
-              <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 text-white">
-                <h3 className="font-bold text-lg">{diploma.actividad_nombre}</h3>
-                <p className="text-sm opacity-90">{diploma.tipo}</p>
-              </div>
-              
-              <div className="p-4 space-y-3">
-                <div className="text-sm text-gray-600">
-                  <p><strong>Fecha de emisión:</strong></p>
-                  <p>{new Date(diploma.fecha_emision).toLocaleDateString('es-GT', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}</p>
-                </div>
-                
-                {diploma.asistencias_requeridas && (
-                  <div className="text-sm text-gray-600">
-                    <p><strong>Asistencias completadas:</strong></p>
-                    <p>{diploma.asistencias_completadas} / {diploma.asistencias_requeridas}</p>
+          {diplomas.map((diploma) => {
+            // Detectar si es ganador y qué puesto
+            let puestoTexto = null;
+            let esGanador = false;
+            
+            if (diploma.codigo_verificacion) {
+              if (diploma.codigo_verificacion.includes('PRIMERLUGAR')) {
+                esGanador = true;
+                puestoTexto = 'PRIMER LUGAR';
+              } else if (diploma.codigo_verificacion.includes('SEGUNDOLUGAR')) {
+                esGanador = true;
+                puestoTexto = 'SEGUNDO LUGAR';
+              } else if (diploma.codigo_verificacion.includes('TERCERLUGAR')) {
+                esGanador = true;
+                puestoTexto = 'TERCER LUGAR';
+              }
+            }
+            
+            return (
+              <div
+                key={diploma.id}
+                className={`bg-white rounded-xl shadow-lg overflow-hidden border-2 transition-all hover:shadow-2xl hover:scale-105 ${
+                  esGanador ? 'border-yellow-400' : 'border-blue-100'
+                }`}
+              >
+                {esGanador && puestoTexto && (
+                  <div className={`text-white text-center py-2 font-bold text-sm ${
+                    puestoTexto === 'PRIMER LUGAR' ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
+                    puestoTexto === 'SEGUNDO LUGAR' ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-900' :
+                    'bg-gradient-to-r from-orange-400 to-orange-600'
+                  }`}>
+                    {puestoTexto === 'PRIMER LUGAR' ? '🥇' : puestoTexto === 'SEGUNDO LUGAR' ? '🥈' : '🥉'} DIPLOMA DE GANADOR DE {puestoTexto}
                   </div>
                 )}
                 
-                <button
-                  onClick={() => generarDiploma(diploma)}
-                  disabled={generandoDiploma === diploma.id}
-                  className={`w-full py-2 rounded-lg font-semibold transition-colors ${
-                    generandoDiploma === diploma.id
-                      ? 'bg-gray-300 text-gray-600 cursor-wait'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {generandoDiploma === diploma.id ? '⏳ Generando...' : '📥 Descargar Diploma'}
-                </button>
+                <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-4 text-white">
+                  <h3 className="font-bold text-lg line-clamp-2">{diploma.actividad_nombre}</h3>
+                  <p className="text-sm opacity-90 mt-1">
+                    {diploma.tipo.charAt(0).toUpperCase() + diploma.tipo.slice(1)}
+                  </p>
+                </div>
                 
-                <button
-                  onClick={() => enviarDiplomaPorCorreo(diploma)}
-                  disabled={enviandoDiploma === diploma.id}
-                  className={`w-full py-2 rounded-lg font-semibold transition-colors ${
-                    enviandoDiploma === diploma.id
-                      ? 'bg-gray-300 text-gray-600 cursor-wait'
-                      : 'bg-green-600 text-white hover:bg-green-700'
-                  }`}
-                >
-                  {enviandoDiploma === diploma.id ? '📧 Enviando...' : '📧 Enviar por Correo'}
-                </button>
+                <div className="p-4 space-y-3">
+                  <div className="text-sm text-gray-600 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">📅 Fecha de emisión:</span>
+                      <span>{new Date(diploma.emitido_en).toLocaleDateString('es-GT', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}</span>
+                    </div>
+                    
+                    {diploma.codigo_verificacion && (
+                      <div className="bg-gray-100 p-2 rounded text-xs">
+                        <span className="font-semibold">🔐 Código:</span>
+                        <code className="ml-1 text-blue-600">{diploma.codigo_verificacion}</code>
+                      </div>
+                    )}
+
+                    {diploma.enviado ? (
+                      <div className="flex items-center gap-2 text-green-600 text-xs">
+                        <span>✓</span>
+                        <span>Enviado el {new Date(diploma.enviado_en).toLocaleDateString('es-GT')}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  
+                  <div className="space-y-2 pt-2">
+                    <button
+                      onClick={() => descargarDiploma(diploma)}
+                      className="w-full py-2.5 rounded-lg font-semibold transition-colors bg-blue-600 text-white hover:bg-blue-700 flex items-center justify-center gap-2"
+                    >
+                      <span>📥</span>
+                      <span>Descargar Diploma</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => enviarDiplomaPorCorreo(diploma)}
+                      disabled={enviandoDiploma === diploma.id}
+                      className={`w-full py-2.5 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 ${
+                        enviandoDiploma === diploma.id
+                          ? 'bg-gray-300 text-gray-600 cursor-wait'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      <span>{enviandoDiploma === diploma.id ? '⏳' : '📧'}</span>
+                      <span>{enviandoDiploma === diploma.id ? 'Enviando...' : 'Enviar por Correo'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
-      
-      {/* Hidden canvas for diploma generation */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {diplomas.length > 0 && (
+        <div className="mt-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+          <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+            <span>ℹ️</span>
+            <span>Información Importante</span>
+          </h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• Puedes descargar tus diplomas en formato PDF</li>
+            <li>• El código de verificación permite validar la autenticidad del diploma</li>
+            <li>• Los diplomas se generan automáticamente al finalizar cada actividad</li>
+            <li>• Los diplomas de ganadores tienen un diseño especial</li>
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -93,11 +93,51 @@ export default function TalleresYCompetencias() {
     }
   };
 
+  const actividadFinalizada = (fecha, horaFin) => {
+    if (!fecha || !horaFin) return false;
+    
+    const ahora = new Date();
+    const fechaActividad = new Date(fecha);
+    const [horas, minutos] = horaFin.split(':');
+    
+    fechaActividad.setHours(parseInt(horas), parseInt(minutos), 0);
+    
+    return ahora > fechaActividad;
+  };
+
+  const separarActividades = (actividades) => {
+    const activas = [];
+    const recientes = [];
+    
+    actividades.forEach(act => {
+      if (actividadFinalizada(act.fecha, act.hora_fin)) {
+        recientes.push(act);
+      } else {
+        activas.push(act);
+      }
+    });
+    
+    return { activas, recientes };
+  };
+
   if (cargando) return <p className="text-center mt-8">Cargando actividades...</p>;
+
+  const { activas: talleresActivos, recientes: talleresRecientes } = separarActividades(talleres);
+  const { activas: competenciasActivas, recientes: competenciasRecientes } = separarActividades(competencias);
+  const esAdmin = user?.rol === 'admin';
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-8">
       <h1 className="text-4xl font-bold text-center">Talleres y Competencias</h1>
+
+      {esAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-blue-800 text-sm flex items-center gap-2">
+            <span className="text-lg">ℹ️</span>
+            <span>Como administrador, tienes acceso solo a visualización. Las inscripciones están deshabilitadas para este rol.</span>
+          </p>
+        </div>
+      )}
 
       {mensaje && (
         <div className={`p-4 rounded text-center ${mensaje.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
@@ -105,13 +145,23 @@ export default function TalleresYCompetencias() {
         </div>
       )}
 
+      {/* TALLERES ACTIVOS */}
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Talleres Disponibles</h2>
-        {talleres.length === 0 ? (
-          <p className="text-gray-500">No hay talleres disponibles</p>
+        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+          📚 Talleres Disponibles
+          {talleresActivos.length > 0 && (
+            <span className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+              {talleresActivos.length} activos
+            </span>
+          )}
+        </h2>
+        {talleresActivos.length === 0 ? (
+          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+            <p className="text-gray-500">No hay talleres disponibles en este momento</p>
+          </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {talleres.map((t) => {
+            {talleresActivos.map((t) => {
               const yaInscrito = inscritosTalleres.includes(t.id);
               return (
                 <div key={t.id} className="bg-white p-5 rounded-lg shadow border hover:shadow-md transition">
@@ -139,17 +189,25 @@ export default function TalleresYCompetencias() {
                       💰 Costo: Q{parseFloat(t.costo).toFixed(2)}
                     </p>
                   )}
-                  <button
-                    onClick={() => inscribirseTaller(t.id)}
-                    disabled={yaInscrito}
-                    className={`mt-3 w-full py-2 font-semibold rounded-lg ${
-                      yaInscrito
-                        ? 'bg-gray-400 cursor-not-allowed text-white'
-                        : 'bg-blue-600 hover:bg-blue-700 text-white'
-                    }`}
-                  >
-                    {yaInscrito ? 'Ya inscrito' : 'Inscribirme'}
-                  </button>
+                  
+                  {!esAdmin && (
+                    <button
+                      onClick={() => inscribirseTaller(t.id)}
+                      disabled={yaInscrito}
+                      className={`mt-3 w-full py-2 font-semibold rounded-lg transition ${
+                        yaInscrito
+                          ? 'bg-green-100 text-green-800 border-2 border-green-300 cursor-default'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      {yaInscrito ? '✓ Ya inscrito' : 'Inscribirme'}
+                    </button>
+                  )}
+                  {yaInscrito && (
+                    <p className="text-xs text-green-600 mt-2 text-center">
+                      Estás inscrito en este taller
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -157,13 +215,59 @@ export default function TalleresYCompetencias() {
         )}
       </section>
 
+      {/* TALLERES RECIENTES */}
+      {talleresRecientes.length > 0 && (
+        <section>
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+            📖 Talleres Recientes
+            <span className="text-sm bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+              {talleresRecientes.length} finalizados
+            </span>
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {talleresRecientes.map((t) => {
+              const yaInscrito = inscritosTalleres.includes(t.id);
+              return (
+                <div key={t.id} className="bg-gray-50 p-5 rounded-lg border border-gray-300 opacity-75">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold text-gray-700">{t.nombre}</h3>
+                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Finalizado</span>
+                  </div>
+                  <p className="text-gray-500 text-sm mb-3">{t.descripcion}</p>
+                  {t.fecha && (
+                    <p className="text-sm text-gray-600 mb-1">
+                      <strong>📅 Fecha:</strong> {new Date(t.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  )}
+                  {yaInscrito && (
+                    <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
+                      <span>✓</span> Participaste en este taller
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* COMPETENCIAS ACTIVAS */}
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Competencias Disponibles</h2>
-        {competencias.length === 0 ? (
-          <p className="text-gray-500">No hay competencias disponibles</p>
+        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+          🏆 Competencias Disponibles
+          {competenciasActivas.length > 0 && (
+            <span className="text-sm bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full">
+              {competenciasActivas.length} activas
+            </span>
+          )}
+        </h2>
+        {competenciasActivas.length === 0 ? (
+          <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+            <p className="text-gray-500">No hay competencias disponibles en este momento</p>
+          </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {competencias.map((c) => {
+            {competenciasActivas.map((c) => {
               const yaInscrito = inscritosCompetencias.includes(c.id);
               return (
                 <div key={c.id} className="bg-white p-5 rounded-lg shadow border border-l-4 border-indigo-600 hover:shadow-md transition">
@@ -191,23 +295,67 @@ export default function TalleresYCompetencias() {
                       💰 Costo: Q{parseFloat(c.costo).toFixed(2)}
                     </p>
                   )}
-                  <button
-                    onClick={() => inscribirseCompetencia(c.id)}
-                    disabled={yaInscrito}
-                    className={`mt-3 w-full py-2 font-semibold rounded-lg ${
-                      yaInscrito
-                        ? 'bg-gray-400 cursor-not-allowed text-white'
-                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                    }`}
-                  >
-                    {yaInscrito ? 'Ya inscrito' : 'Inscribirme'}
-                  </button>
+                  
+                  {!esAdmin && (
+                    <button
+                      onClick={() => inscribirseCompetencia(c.id)}
+                      disabled={yaInscrito}
+                      className={`mt-3 w-full py-2 font-semibold rounded-lg transition ${
+                        yaInscrito
+                          ? 'bg-green-100 text-green-800 border-2 border-green-300 cursor-default'
+                          : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      }`}
+                    >
+                      {yaInscrito ? '✓ Ya inscrito' : 'Inscribirme'}
+                    </button>
+                  )}
+                  {yaInscrito && (
+                    <p className="text-xs text-green-600 mt-2 text-center">
+                      Estás inscrito en esta competencia
+                    </p>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </section>
+
+      {/* COMPETENCIAS RECIENTES */}
+      {competenciasRecientes.length > 0 && (
+        <section>
+          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+            🏅 Competencias Recientes
+            <span className="text-sm bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+              {competenciasRecientes.length} finalizadas
+            </span>
+          </h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {competenciasRecientes.map((c) => {
+              const yaInscrito = inscritosCompetencias.includes(c.id);
+              return (
+                <div key={c.id} className="bg-gray-50 p-5 rounded-lg border border-gray-300 border-l-4 border-l-gray-400 opacity-75">
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="text-lg font-semibold text-gray-700">{c.nombre}</h3>
+                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Finalizada</span>
+                  </div>
+                  <p className="text-gray-500 text-sm mb-3">{c.descripcion}</p>
+                  {c.fecha && (
+                    <p className="text-sm text-gray-600 mb-1">
+                      <strong>📅 Fecha:</strong> {new Date(c.fecha).toLocaleDateString('es-GT', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </p>
+                  )}
+                  {yaInscrito && (
+                    <p className="text-xs text-blue-600 mt-2 flex items-center gap-1">
+                      <span>✓</span> Participaste en esta competencia
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

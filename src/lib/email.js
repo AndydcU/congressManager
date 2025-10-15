@@ -273,11 +273,108 @@ export async function enviarDiplomaPorCorreo({
     html: html,
     attachments: [
       {
-        filename: `Diploma-${nombreActividad.replace(/\s+/g, '-')}.png`,
+        filename: `Diploma-${nombreActividad.replace(/\s+/g, '-')}.pdf`,
         content: diplomaBuffer,
-        contentType: 'image/png',
+        contentType: 'application/pdf',
       },
     ],
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Diploma enviado a ${destinatario}`);
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error al enviar diploma:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Envía un correo con el enlace al diploma
+ * @param {string} destinatario - Email del participante
+ * @param {string} nombreParticipante - Nombre del participante
+ * @param {string} nombreActividad - Nombre del taller o competencia
+ * @param {string} tipoActividad - Tipo de diploma
+ * @param {string} diplomaUrl - URL del diploma
+ * @param {string} codigoVerificacion - Código de verificación del diploma
+ */
+export async function enviarDiplomaConEnlace({
+  destinatario,
+  nombreParticipante,
+  nombreActividad,
+  tipoActividad,
+  diplomaUrl,
+  codigoVerificacion,
+}) {
+  const asunto = `🎓 Tu Diploma del Congreso de Tecnología está Listo`;
+  
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+        .button { display: inline-block; padding: 15px 30px; background-color: #1e3a8a; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+        .button:hover { background-color: #1e40af; }
+        .info-box { background: white; padding: 15px; border-left: 4px solid #fbbf24; margin: 20px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1 style="margin: 0;">🎓 ¡Tu Diploma está Listo!</h1>
+        </div>
+        <div class="content">
+          <p>Estimado/a <strong>${nombreParticipante}</strong>,</p>
+          
+          <p>Nos complace informarte que tu diploma del <strong>Congreso de Tecnología</strong> ha sido generado y está disponible para descarga.</p>
+          
+          <div class="info-box">
+            <p style="margin: 0;"><strong>📋 Detalles del Diploma:</strong></p>
+            <p style="margin: 10px 0 0 0;">
+              • Actividad: <strong>${nombreActividad}</strong><br>
+              • Tipo: ${tipoActividad.charAt(0).toUpperCase() + tipoActividad.slice(1)}<br>
+              • Código de verificación: <code>${codigoVerificacion}</code>
+            </p>
+          </div>
+          
+          <div style="text-align: center;">
+            <a href="${diplomaUrl}" class="button">📥 Descargar Diploma</a>
+          </div>
+          
+          <p><strong>También puedes:</strong></p>
+          <ul>
+            <li>Acceder a todos tus diplomas desde tu perfil en la plataforma</li>
+            <li>Verificar la autenticidad usando el código de verificación</li>
+            <li>Compartir tu logro en redes sociales</li>
+          </ul>
+          
+          <p style="margin-top: 30px;">¡Felicidades por tu participación!</p>
+          
+          <p>Atentamente,<br>
+          <strong>Comité Organizador</strong><br>
+          Congreso de Tecnología - UMG</p>
+        </div>
+        <div class="footer">
+          <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+          <p>&copy; ${new Date().getFullYear()} Universidad Mariano Gálvez de Guatemala</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const mailOptions = {
+    from: `"Congreso de Tecnología" <${process.env.EMAIL_USER}>`,
+    to: destinatario,
+    subject: asunto,
+    html: html,
   };
 
   try {

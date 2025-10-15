@@ -1,123 +1,102 @@
 import db from "@/lib/db";
 import { enviarDiplomaPorCorreo } from "@/lib/email";
-import { createCanvas } from 'canvas';
+import fs from 'fs';
+import path from 'path';
 
-// POST /api/diplomas/enviar
-// Genera y envía el diploma por correo electrónico
+/**
+ * POST /api/diplomas/enviar
+ * Envía un diploma por correo electrónico con el archivo adjunto
+ */
 export async function POST(req) {
   try {
-    const { diploma_id, participante_id } = await req.json();
+    const { diploma_id, usuario_id } = await req.json();
 
-    if (!diploma_id || !participante_id) {
-      return Response.json({ error: "Datos incompletos" }, { status: 400 });
-    }
-
-    // Obtener información del diploma
-    const [diplomas] = await db.query(
-      `SELECT d.*, p.nombre, p.correo 
-       FROM diplomas d
-       JOIN participantes p ON d.participante_id = p.id
-       WHERE d.id = ? AND d.participante_id = ?`,
-      [diploma_id, participante_id]
-    );
-
-    if (!diplomas.length) {
-      return Response.json({ error: "Diploma no encontrado" }, { status: 404 });
-    }
-
-    const diploma = diplomas[0];
-
-    // Generar el diploma como imagen usando canvas
-    const canvas = createCanvas(1200, 850);
-    const ctx = canvas.getContext('2d');
-
-    // Background gradient
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#1e3a8a');
-    gradient.addColorStop(1, '#3b82f6');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Border
-    ctx.strokeStyle = '#fbbf24';
-    ctx.lineWidth = 20;
-    ctx.strokeRect(40, 40, canvas.width - 80, canvas.height - 80);
-
-    // Inner border
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 5;
-    ctx.strokeRect(60, 60, canvas.width - 120, canvas.height - 120);
-
-    // Title
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 60px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('CERTIFICADO DE PARTICIPACIÓN', canvas.width / 2, 180);
-
-    // Subtitle
-    ctx.font = 'italic 30px serif';
-    ctx.fillText('Se otorga a:', canvas.width / 2, 280);
-
-    // Participant name
-    ctx.font = 'bold 50px serif';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText(diploma.nombre.toUpperCase(), canvas.width / 2, 360);
-
-    // Text
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '28px serif';
-    ctx.fillText('Por su participación en', canvas.width / 2, 440);
-
-    // Activity name
-    ctx.font = 'bold 38px serif';
-    ctx.fillStyle = '#fbbf24';
-    ctx.fillText(diploma.actividad_nombre, canvas.width / 2, 500);
-
-    // Type
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'italic 24px serif';
-    ctx.fillText(`(${diploma.tipo})`, canvas.width / 2, 545);
-
-    // Date
-    ctx.font = '22px serif';
-    const fecha = new Date(diploma.fecha_emision).toLocaleDateString('es-GT', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-    ctx.fillText(`Emitido el ${fecha}`, canvas.width / 2, 650);
-
-    // Footer
-    ctx.font = 'italic 20px serif';
-    ctx.fillText('Congreso de Tecnología', canvas.width / 2, 750);
-
-    // Convertir canvas a buffer
-    const buffer = canvas.toBuffer('image/png');
-
-    // Enviar correo con el diploma
-    const emailResult = await enviarDiplomaPorCorreo({
-      destinatario: diploma.correo,
-      nombreParticipante: diploma.nombre,
-      nombreActividad: diploma.actividad_nombre,
-      diplomaBuffer: buffer,
-    });
-
-    if (!emailResult.success) {
-      return Response.json(
-        { error: "Error al enviar el diploma por correo", details: emailResult.error },
-        { status: 500 }
+    if (!diploma_id || !usuario_id) {
+      return new Response(
+        JSON.stringify({ error: 'diploma_id y usuario_id son requeridos' }), 
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    return Response.json({
-      message: "Diploma enviado exitosamente por correo electrónico",
-      email: diploma.correo,
+    // Obtener datos del diploma y usuario
+    const [diplomaRows] = await db.query(
+      `SELECT 
+        d.id,
+        d.archivo_url,
+        d.codigo_verificacion,
+        u.nombre,
+        u.correo,
+        CASE
+          WHEN d.tipo = 'taller' THEN t.nombre
+          WHEN d.tipo = 'competencia' THEN c.nombre
+          ELSE 'Congreso de Tecnología'
+        END as actividad_nombre,
+        d.tipo
+      FROM diplomas d
+      JOIN usuarios u ON u.id = d.usuario_id
+      LEFT JOIN talleres t ON d.taller_id = t.id
+      LEFT JOIN competencias c ON d.competencia_id = c.id
+      WHERE d.id = ? AND d.usuario_id = ?`,
+      [diploma_id, usuario_id]
+    );
+
+    if (!diplomaRows || diplomaRows.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Diploma no encontrado' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const diploma = diplomaRows[0];
+    
+    // Leer el archivo del diploma desde el sistema de archivos
+    const archivoPath = path.join(process.cwd(), 'public', diploma.archivo_url);
+    
+    if (!fs.existsSync(archivoPath)) {
+      return new Response(
+        JSON.stringify({ error: 'Archivo de diploma no encontrado en el servidor' }), 
+        { status: 404, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const diplomaBuffer = fs.readFileSync(archivoPath);
+
+    // Enviar correo con el diploma adjunto
+    const resultado = await enviarDiplomaPorCorreo({
+      destinatario: diploma.correo,
+      nombreParticipante: diploma.nombre,
+      nombreActividad: diploma.actividad_nombre,
+      diplomaBuffer: diplomaBuffer
     });
+
+    if (!resultado.success) {
+      throw new Error(resultado.error || 'Error al enviar correo');
+    }
+
+    // Marcar como enviado
+    await db.query(
+      'UPDATE diplomas SET enviado = 1, enviado_en = NOW() WHERE id = ?',
+      [diploma_id]
+    );
+
+    console.log(`✅ Diploma enviado exitosamente a ${diploma.correo} con archivo adjunto`);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Diploma enviado correctamente al correo con archivo adjunto',
+        correo: diploma.correo 
+      }), 
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
-    console.error("Error al enviar diploma:", error);
-    return Response.json(
-      { error: "Error al procesar la solicitud" },
-      { status: 500 }
+    console.error('❌ Error enviando diploma:', error);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Error al enviar el diploma por correo',
+        details: error.message 
+      }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 }

@@ -29,22 +29,68 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { competencia_id, puesto, usuario_id, proyecto, descripcion, anio } = body;
+    console.log('📥 Body recibido:', body);
+    
+    const { competencia_id, puesto, usuario_id, proyecto, descripcion, anio, puntuacion } = body;
 
     if (!competencia_id || !puesto || !anio) {
+      console.error('❌ Faltan campos obligatorios:', { competencia_id, puesto, anio });
       return new Response(JSON.stringify({ error: 'competencia_id, puesto y anio son obligatorios.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
+    if (!usuario_id) {
+      console.error('❌ Falta usuario_id');
+      return new Response(JSON.stringify({ error: 'usuario_id es obligatorio.' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    console.log('✅ Datos validados, buscando resultado existente...');
+
+    // Verificar si ya existe un resultado para ese puesto en esa competencia
+    const [existente] = await db.query(
+      `SELECT id FROM resultados_competencias 
+       WHERE competencia_id = ? AND puesto = ? AND anio = ?`,
+      [competencia_id, puesto, anio]
+    );
+
+    console.log('🔍 Resultado existente:', existente);
+
+    if (existente.length > 0) {
+      console.log('🔄 Actualizando resultado existente ID:', existente[0].id);
+      // Actualizar el existente
+      await db.query(
+        `UPDATE resultados_competencias 
+         SET usuario_id = ?, proyecto = ?, descripcion = ?
+         WHERE id = ?`,
+        [usuario_id, proyecto || null, descripcion || null, existente[0].id]
+      );
+      console.log('✅ Resultado actualizado exitosamente');
+      return new Response(JSON.stringify({ id: existente[0].id, updated: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    console.log('➕ Creando nuevo resultado...');
+    // Crear nuevo
     const [result] = await db.query(
       `INSERT INTO resultados_competencias (competencia_id, puesto, usuario_id, proyecto, descripcion, anio)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [competencia_id, puesto, usuario_id || null, proyecto || null, descripcion || null, anio]
+      [competencia_id, puesto, usuario_id, proyecto || null, descripcion || null, anio]
     );
 
-    return new Response(JSON.stringify({ id: result.insertId }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    console.log('✅ Resultado creado exitosamente, ID:', result.insertId);
+    return new Response(JSON.stringify({ id: result.insertId, created: true }), { status: 201, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
-    console.error('Error en POST /api/resultados:', error);
-    return new Response(JSON.stringify({ error: 'Error al crear resultado.' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    console.error('❌ ERROR COMPLETO en POST /api/resultados:', error);
+    console.error('Stack trace:', error.stack);
+    console.error('Mensaje:', error.message);
+    console.error('SQL State:', error.sqlState);
+    console.error('SQL Message:', error.sqlMessage);
+    return new Response(
+      JSON.stringify({ 
+        error: 'Error al crear resultado.', 
+        details: error.message,
+        sqlError: error.sqlMessage || 'Sin detalles SQL'
+      }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
