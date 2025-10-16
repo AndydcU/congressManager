@@ -55,10 +55,10 @@ export default function TalleresPage() {
               <p className="text-gray-700 mb-4 text-sm">{t.descripcion}</p>
               
               <div className="space-y-2 text-sm">
-                {t.fecha_realizacion && (
+                {t.fecha && (
                   <p className="flex items-center gap-2">
                     <span className="font-semibold text-gray-700">📅 Fecha:</span>
-                    <span className="text-gray-600">{new Date(t.fecha_realizacion).toLocaleDateString('es-GT', { 
+                    <span className="text-gray-600">{new Date(t.fecha).toLocaleDateString('es-GT', { 
                       year: 'numeric', 
                       month: 'long', 
                       day: 'numeric' 
