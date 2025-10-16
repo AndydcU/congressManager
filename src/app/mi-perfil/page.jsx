@@ -110,13 +110,28 @@ export default function MiPerfilPage() {
   const actividadFinalizada = (fecha, horaFin) => {
     if (!fecha || !horaFin) return false;
     
-    const ahora = new Date();
-    const fechaActividad = new Date(fecha);
-    const [horas, minutos] = horaFin.split(':');
-    
-    fechaActividad.setHours(parseInt(horas), parseInt(minutos), 0);
-    
-    return ahora > fechaActividad;
+    try {
+      const ahora = new Date();
+      
+      // Parsear la fecha correctamente (la fecha viene en formato YYYY-MM-DD desde MySQL)
+      const [year, month, day] = fecha.split('T')[0].split('-');
+      const [horas, minutos] = horaFin.split(':');
+      
+      // Crear fecha local sin problemas de zona horaria
+      const fechaActividad = new Date(
+        parseInt(year), 
+        parseInt(month) - 1, // Los meses en JS van de 0-11
+        parseInt(day),
+        parseInt(horas),
+        parseInt(minutos),
+        0
+      );
+      
+      return ahora > fechaActividad;
+    } catch (error) {
+      console.error('Error al comparar fechas:', error);
+      return false;
+    }
   };
 
   const separarActividades = (actividades) => {
