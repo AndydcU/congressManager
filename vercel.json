@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/diplomas/verificar-y-generar",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
