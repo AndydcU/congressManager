@@ -148,18 +148,20 @@ export default function ResultadosAdmin() {
         ([p, uid]) => uid === usuarioId && parseInt(p) !== puesto
       );
       
+      // Si el usuario ya está en otro puesto, primero lo removemos de allí
+      const nuevosGanadores = { ...ganadoresComp };
       if (puestoActual) {
-        setError(`Este participante ya está seleccionado como ${puestoActual[0]}° lugar`);
+        delete nuevosGanadores[puestoActual[0]];
+        setError(`Movido de ${puestoActual[0]}° lugar a ${puesto}° lugar`);
         setTimeout(() => setError(''), 3000);
-        return prev;
       }
+      
+      // Asignamos el usuario al nuevo puesto
+      nuevosGanadores[puesto] = usuarioId;
       
       return {
         ...prev,
-        [competenciaId]: {
-          ...ganadoresComp,
-          [puesto]: usuarioId,
-        },
+        [competenciaId]: nuevosGanadores,
       };
     });
   }
@@ -269,9 +271,6 @@ export default function ResultadosAdmin() {
                               <td className="px-3 py-3 text-gray-600 text-xs">{p.correo || '—'}</td>
                               {[1, 2, 3].map(puesto => {
                                 const estaSeleccionado = ganadores[c.id]?.[puesto] === p.usuario_id;
-                                const estaSeleccionadoEnOtroPuesto = Object.entries(ganadores[c.id] || {}).some(
-                                  ([p2, uid]) => uid === p.usuario_id && parseInt(p2) !== puesto
-                                );
                                 
                                 return (
                                   <td key={puesto} className="px-3 py-3 text-center">
@@ -280,9 +279,7 @@ export default function ResultadosAdmin() {
                                       name={`puesto-${c.id}-${puesto}`}
                                       checked={estaSeleccionado}
                                       onChange={() => manejarCambio(c.id, puesto, p.usuario_id)}
-                                      disabled={estaSeleccionadoEnOtroPuesto}
-                                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                                      title={estaSeleccionadoEnOtroPuesto ? 'Ya seleccionado en otro puesto' : ''}
+                                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                     />
                                   </td>
                                 );
