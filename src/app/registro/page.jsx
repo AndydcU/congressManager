@@ -47,10 +47,15 @@ export default function RegistroPage() {
 
     setSuccess(true);
 
-    // 🔐 Guarda los datos mínimos del usuario y redirige
+    // 🔐 Guarda el usuario completo con el ID que devuelve el API
     localStorage.setItem(
       'user',
-      JSON.stringify({ nombre: form.nombre, correo: form.correo, rol: 'usuario' })
+      JSON.stringify({ 
+        id: data.id, 
+        nombre: form.nombre, 
+        correo: form.correo, 
+        rol: 'usuario' 
+      })
     );
 
     router.push('/talleresYcompetencias');
