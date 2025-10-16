@@ -152,8 +152,6 @@ export default function ResultadosAdmin() {
       const nuevosGanadores = { ...ganadoresComp };
       if (puestoActual) {
         delete nuevosGanadores[puestoActual[0]];
-        setError(`Movido de ${puestoActual[0]}° lugar a ${puesto}° lugar`);
-        setTimeout(() => setError(''), 3000);
       }
       
       // Asignamos el usuario al nuevo puesto
