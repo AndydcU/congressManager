@@ -70,7 +70,7 @@ export async function GET(req) {
           ag.usuario_id,
           ag.actividad_id as competencia_id,
           ag.tipo,
-          ag.hora_registro,
+          ag.fecha_hora,
           u.nombre as usuario_nombre,
           c.nombre as competencia_nombre
         FROM asistencia_general ag
