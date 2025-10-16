@@ -53,7 +53,7 @@ export default function TalleresPage() {
               </span>
             )}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 mb-4">
             Explora los talleres disponibles. Para inscribirte, ve a la sección de{' '}
             <button
               onClick={() => router.push('/inscripcion')}
@@ -62,6 +62,15 @@ export default function TalleresPage() {
               Inscripción
             </button>
           </p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              fetchTalleres();
+            }}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+          >
+            🔄 Actualizar Lista
+          </button>
         </div>
 
         {talleresActivos.length === 0 ? (
