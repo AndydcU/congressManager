@@ -1,4 +1,5 @@
 import db from '@/lib/db';
+import { del } from '@vercel/blob';
 
 // DELETE /api/diplomas?id=... → eliminar diploma (solo admin)
 export async function DELETE(req) {
@@ -29,14 +30,25 @@ export async function DELETE(req) {
     // Eliminar de BD
     await db.query('DELETE FROM diplomas WHERE id = ?', [id]);
 
-    // Intentar eliminar archivo físico
+    // Intentar eliminar archivo
+    const archivoUrl = diploma[0].archivo_url;
+    const isProduction = process.env.VERCEL === '1' || process.env.BLOB_READ_WRITE_TOKEN;
+    
     try {
-      const fs = require('fs').promises;
-      const path = require('path');
-      const filepath = path.join(process.cwd(), 'public', diploma[0].archivo_url);
-      await fs.unlink(filepath);
+      if (isProduction && archivoUrl.includes('blob.vercel-storage.com')) {
+        // Eliminar de Vercel Blob
+        await del(archivoUrl);
+        console.log('Archivo eliminado de Vercel Blob:', archivoUrl);
+      } else if (!isProduction) {
+        // Eliminar archivo local
+        const fs = require('fs').promises;
+        const path = require('path');
+        const filepath = path.join(process.cwd(), 'public', archivoUrl);
+        await fs.unlink(filepath);
+        console.log('Archivo eliminado localmente:', filepath);
+      }
     } catch (fileErr) {
-      console.warn('No se pudo eliminar el archivo físico:', fileErr);
+      console.warn('No se pudo eliminar el archivo:', fileErr);
     }
 
     return new Response(

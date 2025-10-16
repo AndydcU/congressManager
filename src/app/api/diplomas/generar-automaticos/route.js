@@ -1,6 +1,7 @@
 import db from "@/lib/db";
 import { generarDiplomaPDF } from "@/lib/diplomaGenerator";
 import crypto from 'crypto';
+import { put } from '@vercel/blob';
 
 /**
  * POST /api/diplomas/generar-automaticos
@@ -195,21 +196,42 @@ async function generarYGuardarDiploma({
     descripcion
   });
 
-  // Guardar archivo
   const filename = `${crypto.randomBytes(16).toString('hex')}.pdf`;
-  const filepath = `/diplomas/${filename}`;
-  
-  const fs = require('fs').promises;
-  const path = require('path');
-  const dir = path.join(process.cwd(), 'public', 'diplomas');
-  
-  try {
-    await fs.access(dir);
-  } catch {
-    await fs.mkdir(dir, { recursive: true });
+  let filepath;
+
+  // Verificar si estamos en Vercel (producción) o local (desarrollo)
+  const isProduction = process.env.VERCEL === '1' || process.env.BLOB_READ_WRITE_TOKEN;
+
+  if (isProduction) {
+    // En Vercel: usar Blob Storage
+    try {
+      const blob = await put(`diplomas/${filename}`, pdfBuffer, {
+        access: 'public',
+        contentType: 'application/pdf',
+      });
+      filepath = blob.url;
+      console.log('Diploma guardado en Vercel Blob:', filepath);
+    } catch (error) {
+      console.error('Error guardando en Vercel Blob:', error);
+      throw new Error('Error al guardar diploma en almacenamiento');
+    }
+  } else {
+    // En desarrollo local: usar sistema de archivos
+    filepath = `/diplomas/${filename}`;
+    
+    const fs = require('fs').promises;
+    const path = require('path');
+    const dir = path.join(process.cwd(), 'public', 'diplomas');
+    
+    try {
+      await fs.access(dir);
+    } catch {
+      await fs.mkdir(dir, { recursive: true });
+    }
+    
+    await fs.writeFile(path.join(process.cwd(), 'public', filepath), pdfBuffer);
+    console.log('Diploma guardado localmente:', filepath);
   }
-  
-  await fs.writeFile(path.join(process.cwd(), 'public', filepath), pdfBuffer);
 
   // Código de verificación único
   const codigo_verificacion = `${tipo.toUpperCase()}-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}${codigo_extra ? `-${codigo_extra}` : ''}`;
