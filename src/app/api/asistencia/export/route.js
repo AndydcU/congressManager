@@ -8,7 +8,7 @@ import db from "@/lib/db";
    Sin parámetros exporta los registros de hoy.
 
    Respuesta: CSV con columnas
-     participante_id,nombre,tipo,fecha_hora
+     usuario_id,nombre,tipo_usuario,tipo_actividad,actividad_id,fecha_hora
 ========================================================= */
 export async function GET(req) {
   try {
@@ -21,37 +21,37 @@ export async function GET(req) {
 
     if (from && to) {
       const [data] = await db.query(
-        `SELECT a.participante_id, p.nombre, p.tipo, a.registrado_en
-         FROM asistencia a
-         JOIN participantes p ON p.id = a.participante_id
-         WHERE DATE(a.registrado_en) BETWEEN ? AND ?
-         ORDER BY a.registrado_en DESC`,
+        `SELECT ag.usuario_id, u.nombre, u.tipo_usuario as tipo, ag.tipo as tipo_actividad, ag.actividad_id, ag.registrado_en
+         FROM asistencia_general ag
+         JOIN usuarios u ON u.id = ag.usuario_id
+         WHERE DATE(ag.registrado_en) BETWEEN ? AND ?
+         ORDER BY ag.registrado_en DESC`,
         [from, to]
       );
       rows = Array.isArray(data) ? data : [];
     } else if (date) {
       const [data] = await db.query(
-        `SELECT a.participante_id, p.nombre, p.tipo, a.registrado_en
-         FROM asistencia a
-         JOIN participantes p ON p.id = a.participante_id
-         WHERE DATE(a.registrado_en) = ?
-         ORDER BY a.registrado_en DESC`,
+        `SELECT ag.usuario_id, u.nombre, u.tipo_usuario as tipo, ag.tipo as tipo_actividad, ag.actividad_id, ag.registrado_en
+         FROM asistencia_general ag
+         JOIN usuarios u ON u.id = ag.usuario_id
+         WHERE DATE(ag.registrado_en) = ?
+         ORDER BY ag.registrado_en DESC`,
         [date]
       );
       rows = Array.isArray(data) ? data : [];
     } else {
       const [data] = await db.query(
-        `SELECT a.participante_id, p.nombre, p.tipo, a.registrado_en
-         FROM asistencia a
-         JOIN participantes p ON p.id = a.participante_id
-         WHERE DATE(a.registrado_en) = CURDATE()
-         ORDER BY a.registrado_en DESC`
+        `SELECT ag.usuario_id, u.nombre, u.tipo_usuario as tipo, ag.tipo as tipo_actividad, ag.actividad_id, ag.registrado_en
+         FROM asistencia_general ag
+         JOIN usuarios u ON u.id = ag.usuario_id
+         WHERE DATE(ag.registrado_en) = CURDATE()
+         ORDER BY ag.registrado_en DESC`
       );
       rows = Array.isArray(data) ? data : [];
     }
 
     // Construcción del CSV
-    const header = 'participante_id,nombre,tipo,fecha_hora';
+    const header = 'usuario_id,nombre,tipo_usuario,tipo_actividad,actividad_id,fecha_hora';
     const escape = (val) => {
       if (val === null || val === undefined) return '';
       const s = String(val).replace(/"/g, '""');
@@ -61,9 +61,11 @@ export async function GET(req) {
     };
 
     const lines = rows.map(r => [
-      escape(r.participante_id),
+      escape(r.usuario_id),
       escape(r.nombre),
       escape(r.tipo),
+      escape(r.tipo_actividad),
+      escape(r.actividad_id),
       escape(new Date(r.registrado_en).toISOString())
     ].join(','));
 
