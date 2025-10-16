@@ -223,9 +223,17 @@ export async function POST(req) {
 }
 
 /**
- * GET - Permite verificar el estado sin generar diplomas
+ * GET - Ejecuta la misma lógica que POST (para compatibilidad con cron-job.org)
  */
 export async function GET(req) {
+  console.log('GET request recibido en verificar-y-generar - ejecutando generación...');
+  return POST(req);
+}
+
+/**
+ * HEAD - Verificar estado sin generar diplomas
+ */
+export async function HEAD(req) {
   try {
     const [talleresPendientes] = await db.query(`
       SELECT COUNT(DISTINCT ag.usuario_id) as total
