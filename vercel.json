@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/diplomas/verificar-y-generar",
+      "path": "/api/diplomas/generar-ganadores",
       "schedule": "*/5 * * * *"
     }
   ]

@@ -49,17 +49,32 @@ export async function POST(req) {
 
     const diploma = diplomaRows[0];
     
-    // Leer el archivo del diploma desde el sistema de archivos
-    const archivoPath = path.join(process.cwd(), 'public', diploma.archivo_url);
+    // Obtener el archivo del diploma
+    let diplomaBuffer;
     
-    if (!fs.existsSync(archivoPath)) {
-      return new Response(
-        JSON.stringify({ error: 'Archivo de diploma no encontrado en el servidor' }), 
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
+    // Verificar si es URL de Vercel Blob o archivo local
+    if (diploma.archivo_url.startsWith('http')) {
+      // Es URL de Vercel Blob - descargar
+      const response = await fetch(diploma.archivo_url);
+      if (!response.ok) {
+        return new Response(
+          JSON.stringify({ error: 'No se pudo descargar el diploma desde Vercel Blob' }), 
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      diplomaBuffer = Buffer.from(arrayBuffer);
+    } else {
+      // Es archivo local (desarrollo)
+      const archivoPath = path.join(process.cwd(), 'public', diploma.archivo_url);
+      if (!fs.existsSync(archivoPath)) {
+        return new Response(
+          JSON.stringify({ error: 'Archivo de diploma no encontrado en el servidor' }), 
+          { status: 404, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      diplomaBuffer = fs.readFileSync(archivoPath);
     }
-
-    const diplomaBuffer = fs.readFileSync(archivoPath);
 
     // Enviar correo con el diploma adjunto
     const resultado = await enviarDiplomaPorCorreo({

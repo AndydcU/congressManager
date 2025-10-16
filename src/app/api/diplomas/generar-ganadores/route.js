@@ -95,43 +95,11 @@ export async function POST(req) {
 }
 
 /**
- * GET - Muestra cuántos ganadores necesitan diplomas
+ * GET - Ejecuta la misma lógica que POST (para compatibilidad con cron-job.org)
  */
 export async function GET(req) {
-  try {
-    const anioActual = new Date().getFullYear();
-    
-    const [ganadores] = await db.query(`
-      SELECT COUNT(*) as total
-      FROM resultados_competencias r
-      WHERE r.anio = ?
-        AND r.puesto <= 3
-        AND NOT EXISTS (
-          SELECT 1 FROM diplomas d
-          WHERE d.usuario_id = r.usuario_id
-            AND d.tipo = 'competencia'
-            AND d.competencia_id = r.competencia_id
-            AND (
-              d.codigo_verificacion LIKE '%PRIMERLUGAR%' OR
-              d.codigo_verificacion LIKE '%SEGUNDOLUGAR%' OR
-              d.codigo_verificacion LIKE '%TERCERLUGAR%'
-            )
-        )
-    `, [anioActual]);
-
-    return new Response(
-      JSON.stringify({ 
-        ganadoresSinDiploma: ganadores[0].total,
-        mensaje: `Hay ${ganadores[0].total} ganadores sin diploma. Usa POST para generar sus diplomas.`
-      }), 
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }), 
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+  console.log('GET request recibido en generar-ganadores - ejecutando generación...');
+  return POST(req);
 }
 
 async function generarYGuardarDiploma({ 
