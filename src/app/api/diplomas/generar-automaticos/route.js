@@ -134,7 +134,6 @@ export async function POST(req) {
         for (const ganador of ganadores) {
           try {
             const puestoTexto = ganador.puesto === 1 ? 'PRIMER' : ganador.puesto === 2 ? 'SEGUNDO' : 'TERCER';
-            const emoji = ganador.puesto === 1 ? '🥇' : ganador.puesto === 2 ? '🥈' : '🥉';
             
             const resultado = await generarYGuardarDiploma({
               usuario_id: ganador.usuario_id,
@@ -142,9 +141,9 @@ export async function POST(req) {
               usuario_correo: ganador.usuario_correo,
               tipo: 'competencia',
               competencia_id: ganador.competencia_id,
-              titulo: `${emoji} ${puestoTexto} LUGAR`,
+              titulo: `RECONOCIMIENTO - ${puestoTexto} LUGAR`,
               subtitulo: `Competencia: ${ganador.competencia_nombre}`,
-              descripcion: `Por su destacada participación obteniendo el ${puestoTexto.toLowerCase()} lugar`,
+              descripcion: `Por su destacada participacion obteniendo el ${puestoTexto.toLowerCase()} lugar`,
               codigo_extra: `${puestoTexto}LUGAR`
             });
             diplomasGenerados.push(resultado);
