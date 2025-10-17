@@ -1,15 +1,5 @@
 import db from "@/lib/db";
 
-/* =========================================================
-   GET /api/asistencia/report
-   Parámetros soportados:
-     - date=YYYY-MM-DD        → resumen para esa fecha (si no se envía, usa hoy)
-     - from=YYYY-MM-DD&to=YYYY-MM-DD → desglose por día en rango [from, to]
-
-   Respuestas:
-     - Con from/to: [{ fecha, total, internos, externos }]
-     - Con date (o default hoy): { fecha, total, internos, externos }
-========================================================= */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);

@@ -11,11 +11,11 @@ export default function ScanPage() {
 
     const trimmed = String(text).trim();
 
-    // Extract token or participante_id from QR content
+    // Extrae token o participante_id de QR 
     let token = null;
     let participante_id = null;
 
-    // Try JSON first
+    // Prueba JSON primero
     try {
       const obj = JSON.parse(trimmed);
       if (obj && typeof obj.token === 'string') {
@@ -24,12 +24,11 @@ export default function ScanPage() {
         participante_id = obj.participante_id || obj.pid;
       }
     } catch (_) {
-      // Not JSON: infer by format
       const n = parseInt(trimmed, 10);
       if (!Number.isNaN(n) && String(n) === trimmed) {
         participante_id = n;
       } else if (trimmed.length >= 16) {
-        token = trimmed; // treat as plain token string
+        token = trimmed; 
       }
     }
 

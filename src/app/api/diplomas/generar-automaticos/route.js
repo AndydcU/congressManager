@@ -11,7 +11,7 @@ import { put } from '@vercel/blob';
  */
 export async function POST(req) {
   try {
-    const { tipo } = await req.json(); // 'asistencia' | 'ganadores' | 'all'
+    const { tipo } = await req.json(); // 'asistencia' | 'ganadores' |
     
     const diplomasGenerados = [];
     const errores = [];

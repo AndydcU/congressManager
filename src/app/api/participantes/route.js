@@ -1,8 +1,6 @@
 import pool from '@/lib/db';
 
-/* =========================================================
-   GET /api/participantes → Lista todos los usuarios (excepto admins) con sus inscripciones
-   ========================================================= */
+   //GET /api/participantes → Lista todos los usuarios (excepto admins) con sus inscripciones
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);

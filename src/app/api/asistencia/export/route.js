@@ -1,15 +1,5 @@
 import db from "@/lib/db";
 
-/* =========================================================
-   GET /api/asistencia/export
-   Parámetros opcionales:
-     - date=YYYY-MM-DD               → exporta registros de ese día
-     - from=YYYY-MM-DD&to=YYYY-MM-DD → exporta registros en el rango [from, to]
-   Sin parámetros exporta los registros de hoy.
-
-   Respuesta: CSV con columnas
-     usuario_id,nombre,tipo_usuario,tipo_actividad,actividad_id,fecha_hora
-========================================================= */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);

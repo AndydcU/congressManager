@@ -1,27 +1,5 @@
 import db from "@/lib/db";
 
-/* =========================================================
-   Esquema esperado en BD (agregar si no existe):
-
-   CREATE TABLE asistencia_taller (
-     id INT AUTO_INCREMENT PRIMARY KEY,
-     participante_id INT NOT NULL,
-     taller_id INT NOT NULL,
-     registrado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-     FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
-     FOREIGN KEY (taller_id) REFERENCES talleres(id) ON DELETE CASCADE
-   );
-
-   Satisface requerimiento del PDF: asistencia específica por taller/competencia.
-========================================================= */
-
-/* =========================================================
-   GET /api/asistencia/taller
-   Modos:
-     - ?taller_id=ID&date=YYYY-MM-DD → lista registros del taller ese día
-     - ?date=YYYY-MM-DD → resumen por taller de ese día
-     - sin params → resumen por taller de HOY
-========================================================= */
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
@@ -81,13 +59,7 @@ export async function GET(req) {
   }
 }
 
-/* =========================================================
-   POST /api/asistencia/taller
-   Body:
-     - Con token: { token: string, taller_id: number }
-     - Con IDs:   { participante_id: number, taller_id: number }
-   Registra una asistencia por taller (1 por día por participante y taller)
-========================================================= */
+
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
